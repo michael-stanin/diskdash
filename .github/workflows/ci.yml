@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, tests, guards)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy (includes the read-only disallowed-methods list)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Read-only guard (Win32 mutator APIs)
+        run: cargo xtask readonly-check
+      - name: No HTTP client in the server
+        run: cargo xtask no-http-client
+      - name: Tests (also regenerates TypeScript API types)
+        run: cargo test --workspace
+      - name: Generated TypeScript types are committed
+        shell: bash
+        run: |
+          git add -N frontend/src/api/types
+          git diff --exit-code -- frontend/src/api/types || {
+            echo "::error::API types changed. Run 'cargo test' and commit frontend/src/api/types."; exit 1; }
+
+  frontend:
+    name: Frontend (lint, types, unit tests, build, bundle check)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: No external URLs in the bundle
+        run: npm run check:bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  e2e:
+    name: Playwright smoke (both themes, axe)
+    runs-on: windows-latest
+    needs: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+      - run: npm ci --no-audit --no-fund
+        working-directory: frontend
+      - name: Smoke tests (uses the preinstalled Microsoft Edge)
+        run: npx playwright test
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: |
+            frontend/test-results
+            frontend/playwright-report

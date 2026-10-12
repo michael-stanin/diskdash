@@ -1,0 +1,131 @@
+schema: spec-driven
+
+context: |
+  # Project: Local Disk Space Dashboard ("diskdash")
+
+  ## Goal
+  A local-only dashboard for one Windows 10/11 machine with mixed HDDs and SSDs. It shows
+  what is on each drive, where the space goes, and what could be removed or moved.
+  Primary outcome: IDENTIFY AND SUGGEST how to free space. The app is STRICTLY READ-ONLY:
+  it never deletes, moves or changes anything. The user carries out every suggestion
+  themselves, following the instructions the app shows. Every feature is judged against
+  "could this lose the user's data?" first and "how many bytes could it free?" second.
+  The dashboard must look modern and polished: it is a product, not a debug page.
+
+  ## Target environment
+  - Windows 10 (19045) and Windows 11, x64. Scope: local FIXED INTERNAL drives only
+    (NTFS primarily, ReFS/exFAT tolerated). USB/removable, optical, virtual and network
+    drives are out of scope: they are not listed and not scanned.
+  - Runs as the logged-in user. Works WITHOUT admin rights (reduced mode). When elevated
+    capabilities are needed (SMART reliability counters, MFT/USN fast scan) they come from a
+    separate read-only helper; the web server itself never runs elevated by design.
+  - Single user, single machine. No cloud, no accounts, no telemetry.
+
+  ## Stack (owner decision: Rust backend + web UI, no Python)
+  - Backend: Rust (stable, edition 2021) cargo workspace producing ONE executable
+    `diskdash.exe`: axum + tokio HTTP server, tower middleware, serde for JSON, SSE via axum.
+  - Win32 access via the `windows` crate. System info via PowerShell (Get-Volume,
+    Get-Partition, Get-PhysicalDisk, Get-StorageReliabilityCounter) launched with
+    std::process::Command (-NoProfile -NonInteractive, JSON output). smartctl optional,
+    only if already installed.
+  - Long work (scans, hashing, rule evaluation) runs on dedicated worker threads
+    (std::thread / tokio spawn_blocking) managed by a job runner; never on the async
+    request path. Panics in a job are caught and turn the job into `failed`.
+    Progress is pushed to the UI over Server-Sent Events (SSE).
+  - Storage: SQLite via rusqlite (bundled), WAL mode. Catalog DB at
+    %LOCALAPPDATA%\diskdash\diskdash.db; one SQLite file per scan snapshot. Migrations are
+    numbered SQL files embedded in the binary.
+  - Frontend: React 19 + Vite + TypeScript (strict). Tailwind CSS + shadcn/ui (Radix
+    primitives) for components, lucide-react icons, Geist + Geist Mono (bundled locally) as the UI font.
+    Apache ECharts for treemap/sunburst/bar/time-series, themed from the same design tokens.
+    TanStack Query for data fetching, TanStack Table + Virtual for large tables.
+  - The built frontend is embedded into the executable (rust-embed), so a release is a
+    single .exe with no external assets.
+  - Tests: `cargo test` (unit + integration; fixture trees under a temp dir), Vitest +
+    Testing Library (frontend), Playwright for a few visual smoke checks against the local
+    server. Lint: cargo fmt, clippy -D warnings, ESLint, tsc --noEmit. CI: GitHub Actions
+    on windows-latest.
+  - One-command start: `.\start.ps1` checks prerequisites (Rust toolchain, Node 20+), builds
+    if needed, starts diskdash.exe, opens the browser.
+
+  ## Repository layout
+  - crates/diskdash/          the server binary: api/, jobs/, settings, embedding the UI
+  - crates/diskdash-core/     scanner (walk, later ntfs/MFT+USN), size/category logic,
+                              snapshot writer; no HTTP
+  - crates/diskdash-store/    SQLite access, migrations, snapshot queries
+  - crates/diskdash-inventory/ drives, health (PowerShell, smartctl, Win32)
+  - crates/diskdash-analysis/ rules engine, stale data, duplicates, tiering, history
+  - crates/diskdash-helper/   (phase 11) small elevated read-only helper binary
+  - crates/test-fixtures/     fixture tree builder used by integration tests
+  - frontend/                 Vite React app
+  - rules/                    built-in cleanup rule definitions (YAML, embedded at build)
+  - openspec/                 specs and changes
+  - start.ps1, README.md
+
+  ## Conventions
+  - Rust: `thiserror` for library errors, `anyhow` only in the binary; no `unwrap()` outside
+    tests; `tracing` for logs; public API types derive serde Serialize/Deserialize.
+  - API: JSON over HTTP under /api/v1, SSE under /api/v1/events. Sizes are integers in bytes
+    (u64 in Rust; serialized as JSON numbers, safe below 2^53); timestamps are UTC RFC 3339.
+    Formatting for humans happens only in the UI. TypeScript API types are generated from
+    the Rust types (ts-rs) so the two never drift.
+  - Sizes: always carry BOTH logical size and allocated size ("size on disk"). Human-readable
+    units in the UI use binary prefixes (KiB/MiB/GiB) labelled as such.
+  - Paths: stored and returned as full Windows paths without the \\?\ prefix; internally all
+    filesystem calls use extended-length (\\?\) paths so >260-char paths work.
+  - Lists in charts are capped: treemap/sunburst show at most 20 children per level plus an
+    "Other" bucket (default 20, setting may lower it to 5); Top-N tables default to 20 rows
+    with "show more".
+  - Rescans are manual (user-triggered). No scheduled tasks, no background watchdog
+    (a watchdog toggle is a possible future item, not planned).
+  - Alerts appear only inside the dashboard. No OS notifications, no Start-menu shortcuts.
+  - Errors: never fail a whole scan because of one path; record the error per path.
+  - Commit messages: imperative mood, reference the OpenSpec change name.
+
+  ## UI quality bar
+  - Consistent design tokens (colour, spacing, radius, typography, elevation) in one place,
+    light and dark themes from the same tokens; dark theme is first-class, not inverted.
+  - Every data view has designed loading (skeletons), empty and error states.
+  - Numbers are tabular-aligned; sizes always human-readable with the exact byte count on hover.
+  - Responsive down to 1280x720 without horizontal scroll; keyboard navigable; WCAG AA contrast.
+  - Motion is subtle (<= 200 ms) and respects prefers-reduced-motion.
+
+  ## Safety rules (non-negotiable, apply to every change)
+  1. Server binds to 127.0.0.1 only. It rejects requests whose Host header is not
+     127.0.0.1/localhost on the configured port (DNS-rebinding defence). State-changing
+     endpoints require a per-session CSRF token and same-origin Origin header.
+  2. No outbound network calls of any kind. No CDN assets or web fonts: the frontend bundle
+     is self-contained. Network shares are never scanned or measured.
+  3. Strictly read-only. No part of the app modifies, moves, deletes, recycles, renames,
+     compresses, opens-for-write or changes timestamps/attributes of user files, creates links,
+     or changes system settings. Suggested commands are shown as text for the user to run;
+     the app never executes them. Allowed side effects: its own DB/logs, report files saved to
+     a location the user picks, launching Explorer to show a path, clipboard copy.
+     Cloud placeholder files (OneDrive "online-only", RECALL_ON_DATA_ACCESS/OFFLINE attributes)
+     MUST NOT be opened for reading, because that triggers a download.
+     Enforced in CI by clippy `disallowed-methods` plus a deny-list check for Win32 APIs.
+  4. Protected paths and user exclusions are never suggested for cleanup or moving. This is
+     enforced in the backend, not only in the UI.
+  5. System files (hiberfil.sys, pagefile.sys, WinSxS, shadow copies, CompactOS) are reported
+     with instructions only, as is everything else.
+  6. Tests run only against temporary fixture directories created by the test itself. Fixture
+     setup is the only code allowed to create links, ACLs or files.
+  7. Logs stay local (%LOCALAPPDATA%\diskdash\logs), rotate by size, and never include file
+     contents.
+
+rules:
+  proposal:
+    - "State which safety rules (from project context) the change touches, or say 'none'."
+    - "Keep it to one page; implementation detail belongs in design.md."
+  specs:
+    - "Use SHALL/MUST in every requirement; every requirement has at least one #### Scenario with WHEN/THEN."
+    - "Include a scenario for the non-admin (reduced mode) behaviour whenever a feature differs when elevated."
+    - "Include failure-path scenarios (access denied, missing data, locked file) not just happy paths."
+    - "Never specify an app behaviour that changes user files or system settings."
+  design:
+    - "Each decision lists the alternatives considered and why they lost."
+    - "Call out memory/performance bounds for anything that touches >1M files."
+  tasks:
+    - "Tasks are small (<= half a day) and each ends in something verifiable (a test, a command, a screen)."
+    - "Tests are written in the same group as the code they cover, not in a trailing 'testing' group."
+    - "UI tasks name the loading, empty and error states they deliver."

@@ -1,0 +1,122 @@
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "tailwindcss";
+@import "./styles/tokens.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "Cascadia Mono", monospace;
+
+  --color-background: var(--background);
+  --color-sidebar: var(--sidebar);
+  --color-card: var(--card);
+  --color-card-raised: var(--card-raised);
+  --color-muted: var(--muted);
+  --color-hover: var(--hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-foreground: var(--primary-soft-foreground);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-soft-border: var(--danger-soft-border);
+  --color-danger-soft-foreground: var(--danger-soft-foreground);
+
+  --color-fill-normal: var(--fill-normal);
+  --color-fill-caution: var(--fill-caution);
+  --color-fill-warning: var(--fill-warning);
+  --color-fill-track: var(--fill-track);
+
+  --color-risk-safe-bg: var(--risk-safe-bg);
+  --color-risk-safe-fg: var(--risk-safe-fg);
+  --color-risk-review-bg: var(--risk-review-bg);
+  --color-risk-review-fg: var(--risk-review-fg);
+  --color-risk-expert-bg: var(--risk-expert-bg);
+  --color-risk-expert-fg: var(--risk-expert-fg);
+
+  --color-media-nvme-bg: var(--media-nvme-bg);
+  --color-media-nvme-fg: var(--media-nvme-fg);
+  --color-media-ssd-bg: var(--media-ssd-bg);
+  --color-media-ssd-fg: var(--media-ssd-fg);
+  --color-media-hdd-bg: var(--media-hdd-bg);
+  --color-media-hdd-fg: var(--media-hdd-fg);
+  --color-media-unknown-bg: var(--media-unknown-bg);
+  --color-media-unknown-fg: var(--media-unknown-fg);
+
+  --color-cat-video: var(--cat-video);
+  --color-cat-images: var(--cat-images);
+  --color-cat-audio: var(--cat-audio);
+  --color-cat-archives: var(--cat-archives);
+  --color-cat-installers: var(--cat-installers);
+  --color-cat-documents: var(--cat-documents);
+  --color-cat-code: var(--cat-code);
+  --color-cat-disk-images: var(--cat-disk-images);
+  --color-cat-system: var(--cat-system);
+  --color-cat-other: var(--cat-other);
+
+  --radius-card: var(--radius);
+  --shadow-popover: var(--shadow-popover);
+
+  /* Type scale */
+  --text-display: 1.875rem;
+  --text-display--line-height: 2.25rem;
+  --text-display--letter-spacing: -0.02em;
+  --text-title: 1.5rem;
+  --text-title--line-height: 2rem;
+  --text-title--letter-spacing: -0.02em;
+
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  @keyframes shimmer {
+    0% { opacity: 0.55; }
+    50% { opacity: 1; }
+    100% { opacity: 0.55; }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* All figures align in columns. */
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

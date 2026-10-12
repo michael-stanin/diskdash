@@ -1,0 +1,12 @@
+[package]
+name = "diskdash-core"
+description = "Filesystem scanner core for diskdash (read-only)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

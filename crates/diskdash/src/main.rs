@@ -1,0 +1,73 @@
+//! diskdash: a local, strictly read-only disk space dashboard.
+//! Listens on 127.0.0.1 only and serves the embedded web UI.
+
+use std::sync::Arc;
+
+use anyhow::{bail, Context};
+use diskdash::app::{build_router, AppState};
+use diskdash::assets::EmbeddedAssets;
+use diskdash::config::Config;
+use diskdash::events::EventBus;
+use diskdash::jobs::JobRunner;
+use diskdash::security::Security;
+use diskdash::system::WindowsElevation;
+use diskdash_store::{open_catalog, DataDir, OwnFiles};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let config = Config::from_args(std::env::args().skip(1)).context("invalid arguments")?;
+
+    let data_dir = DataDir::resolve().context("cannot determine %LOCALAPPDATA%")?;
+    let own = OwnFiles::new(&data_dir).context("cannot create the data directory")?;
+    diskdash::logging::init(&own, &data_dir.logs_dir()).context("cannot initialise logging")?;
+
+    let db = open_catalog(&data_dir, &own).context("cannot open the database")?;
+    let events = Arc::new(EventBus::new());
+    let workers = std::thread::available_parallelism().map(|n| n.get().min(4)).unwrap_or(2);
+    let jobs = JobRunner::start(db.clone(), events.clone(), workers).context("cannot start the job runner")?;
+
+    let listener = match diskdash::config::bind(&config).await {
+        Ok(l) => l,
+        Err(msg) => bail!(msg),
+    };
+
+    let state = AppState {
+        security: Arc::new(Security::new(config.port)),
+        db,
+        jobs: jobs.clone(),
+        events,
+        assets: Arc::new(EmbeddedAssets),
+        elevation: Arc::new(WindowsElevation),
+        data_dir: data_dir.root().to_path_buf(),
+        dev: config.dev,
+    };
+    let url = format!("http://127.0.0.1:{}/", config.port);
+    tracing::info!(%url, data_dir = %data_dir.root().display(), dev = config.dev, "diskdash listening");
+    println!("diskdash is running at {url}  (Ctrl+C to stop)");
+
+    if config.open_browser {
+        open_browser(&url);
+    }
+
+    axum::serve(listener, build_router(state))
+        .with_graceful_shutdown(async move {
+            let _ = tokio::signal::ctrl_c().await;
+            tracing::info!("shutting down");
+            jobs.shutdown();
+        })
+        .await
+        .context("server error")?;
+    Ok(())
+}
+
+/// Open the default browser (allowed side effect: it only shows our own page).
+fn open_browser(url: &str) {
+    use windows::core::{HSTRING, PCWSTR};
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    let url = HSTRING::from(url);
+    // SAFETY: all strings are valid, NUL-terminated HSTRINGs that outlive the call.
+    unsafe {
+        ShellExecuteW(None, &HSTRING::from("open"), &url, PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL);
+    }
+}

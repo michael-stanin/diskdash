@@ -1,0 +1,42 @@
+# Safety rule 3: diskdash is strictly read-only.
+# File mutation is only possible inside `diskdash_store::own_files`, which carries
+# an explicit `#[allow]` and refuses any path outside the app data directory or a
+# report path the user picked. `test-fixtures` is exempt (it builds temp trees).
+# Win32 mutators are caught by `cargo xtask readonly-check`.
+
+disallowed-methods = [
+  { path = "std::fs::remove_file", reason = "read-only app: use diskdash_store::own_files" },
+  { path = "std::fs::remove_dir", reason = "read-only app: use diskdash_store::own_files" },
+  { path = "std::fs::remove_dir_all", reason = "read-only app: use diskdash_store::own_files" },
+  { path = "std::fs::rename", reason = "read-only app: use diskdash_store::own_files" },
+  { path = "std::fs::write", reason = "read-only app: use diskdash_store::own_files" },
+  { path = "std::fs::copy", reason = "read-only app: use diskdash_store::own_files" },
+  { path = "std::fs::set_permissions", reason = "read-only app" },
+  { path = "std::fs::hard_link", reason = "read-only app" },
+  { path = "std::fs::soft_link", reason = "read-only app" },
+  { path = "std::fs::create_dir", reason = "read-only app: use diskdash_store::own_files" },
+  { path = "std::fs::create_dir_all", reason = "read-only app: use diskdash_store::own_files" },
+  { path = "std::fs::File::create", reason = "read-only app: use diskdash_store::own_files" },
+  { path = "std::fs::File::create_new", reason = "read-only app: use diskdash_store::own_files" },
+  { path = "std::fs::File::set_len", reason = "read-only app" },
+  { path = "std::fs::File::set_times", reason = "read-only app" },
+  { path = "std::fs::File::set_modified", reason = "read-only app" },
+  { path = "std::fs::File::set_permissions", reason = "read-only app" },
+  { path = "std::os::windows::fs::symlink_file", reason = "read-only app" },
+  { path = "std::os::windows::fs::symlink_dir", reason = "read-only app" },
+  { path = "tokio::fs::remove_file", reason = "read-only app", allow-invalid = true },
+  { path = "tokio::fs::remove_dir_all", reason = "read-only app", allow-invalid = true },
+  { path = "tokio::fs::rename", reason = "read-only app", allow-invalid = true },
+  { path = "tokio::fs::write", reason = "read-only app", allow-invalid = true },
+  { path = "tokio::fs::copy", reason = "read-only app", allow-invalid = true },
+  { path = "tokio::fs::File::create", reason = "read-only app", allow-invalid = true },
+]
+
+disallowed-types = [
+  { path = "std::fs::OpenOptions", reason = "can open for write: use diskdash_store::own_files" },
+  { path = "tokio::fs::OpenOptions", reason = "can open for write", allow-invalid = true },
+]
+
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+

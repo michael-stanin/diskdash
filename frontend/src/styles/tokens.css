@@ -1,0 +1,142 @@
+/*
+ * Design tokens: the ONLY place colour values live.
+ * Components use Tailwind classes mapped to these variables (see index.css),
+ * and charts read them at runtime (see lib/chart-theme.ts).
+ */
+
+:root {
+  /* Surfaces */
+  --background: #f7f8fa;
+  --sidebar: #f0f2f5;
+  --card: #ffffff;
+  --card-raised: #ffffff;
+  --muted: #eef0f3;
+  --hover: #e8ebef;
+  --border: #e1e4e9;
+  --border-strong: #cdd2d9;
+
+  /* Text */
+  --foreground: #14171c;
+  --foreground-secondary: #3c434d;
+  --muted-foreground: #5f6772;
+  --subtle-foreground: #646b75;
+
+  /* Accent */
+  --primary: #0b7a70;
+  --primary-hover: #096860;
+  --primary-foreground: #ffffff;
+  --primary-soft: #e3f4f1;
+  --primary-soft-foreground: #0b6b62;
+  --ring: #0b7a70;
+
+  /* States */
+  --success: #1e8a55;
+  --warning: #8f5b00;
+  --danger: #c2410c;
+  --danger-soft: #fdeee7;
+  --danger-soft-border: #f6c9b5;
+  --danger-soft-foreground: #8a2f0a;
+
+  /* Fill bar */
+  --fill-normal: #0b7a70;
+  --fill-caution: #c58400;
+  --fill-warning: #d4572f;
+  --fill-track: #e6e9ed;
+
+  /* Risk badges */
+  --risk-safe-bg: #e2f4ea;
+  --risk-safe-fg: #17663f;
+  --risk-review-bg: #fbf0d9;
+  --risk-review-fg: #7a5100;
+  --risk-expert-bg: #fbe5de;
+  --risk-expert-fg: #8f3412;
+
+  /* Media badges */
+  --media-nvme-bg: #e4e9ff;
+  --media-nvme-fg: #2f45a8;
+  --media-ssd-bg: #efe6ff;
+  --media-ssd-fg: #5b2fa8;
+  --media-hdd-bg: #f8eed6;
+  --media-hdd-fg: #6e5310;
+  --media-unknown-bg: #eceef1;
+  --media-unknown-fg: #4b525c;
+
+  /* File-type categories (charts + legends) */
+  --cat-video: #3d74e0;
+  --cat-images: #8e5ff0;
+  --cat-audio: #d6488a;
+  --cat-archives: #c58400;
+  --cat-installers: #d9682c;
+  --cat-documents: #6b8a2a;
+  --cat-code: #1e9e63;
+  --cat-disk-images: #1c93ad;
+  --cat-system: #6b7280;
+  --cat-other: #9aa1ab;
+
+  --shadow-popover: 0 8px 24px rgb(16 24 40 / 0.12), 0 2px 6px rgb(16 24 40 / 0.06);
+  --radius: 12px;
+}
+
+.dark {
+  --background: #0b0d10;
+  --sidebar: #0e1014;
+  --card: #13161b;
+  --card-raised: #171b21;
+  --muted: #1a1e25;
+  --hover: #1d2129;
+  --border: #1e2229;
+  --border-strong: #2a2f38;
+
+  --foreground: #e6e8eb;
+  --foreground-secondary: #c9ced6;
+  --muted-foreground: #959ca7;
+  --subtle-foreground: #808792;
+
+  --primary: #7dd3c8;
+  --primary-hover: #a7e8df;
+  --primary-foreground: #0b0d10;
+  --primary-soft: #1e2a2a;
+  --primary-soft-foreground: #7dd3c8;
+  --ring: #7dd3c8;
+
+  --success: #5cc08a;
+  --warning: #e8b04b;
+  --danger: #f08a70;
+  --danger-soft: #2a1a17;
+  --danger-soft-border: #4a2a24;
+  --danger-soft-foreground: #f3c4b8;
+
+  --fill-normal: #7dd3c8;
+  --fill-caution: #e8b04b;
+  --fill-warning: #f08a70;
+  --fill-track: #1e2229;
+
+  --risk-safe-bg: #16291f;
+  --risk-safe-fg: #7fd6a3;
+  --risk-review-bg: #2b2416;
+  --risk-review-fg: #f0c46b;
+  --risk-expert-bg: #2d1b18;
+  --risk-expert-fg: #f5a08a;
+
+  --media-nvme-bg: #1d2440;
+  --media-nvme-fg: #9db2ff;
+  --media-ssd-bg: #2a1f3d;
+  --media-ssd-fg: #c7a6ff;
+  --media-hdd-bg: #2b2618;
+  --media-hdd-fg: #e8c77a;
+  --media-unknown-bg: #1d2129;
+  --media-unknown-fg: #9aa1ac;
+
+  --cat-video: #5b8def;
+  --cat-images: #b38bfa;
+  --cat-audio: #ec7fb0;
+  --cat-archives: #e8b04b;
+  --cat-installers: #f0905a;
+  --cat-documents: #a3b86c;
+  --cat-code: #5cc08a;
+  --cat-disk-images: #4fb3c9;
+  --cat-system: #8a919c;
+  --cat-other: #3a3f48;
+
+  --shadow-popover: 0 12px 32px rgb(0 0 0 / 0.45), 0 2px 8px rgb(0 0 0 / 0.3);
+}
