@@ -76,6 +76,11 @@ impl Fixture {
         p
     }
 
+    /// Delete a fixture file (simulates a file removed after a scan).
+    pub fn remove(&self, rel: &str) {
+        fs::remove_file(self.path(rel)).expect("remove fixture file");
+    }
+
     /// `count` empty files named f0000… in `rel` (bulk trees for benchmarks).
     pub fn empty_files(&self, rel: &str, count: usize) {
         let dir = self.dir(rel);

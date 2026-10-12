@@ -1,10 +1,13 @@
-import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type { Drive } from "./types/Drive";
 import type { DrivesResponse } from "./types/DrivesResponse";
 import type { Health } from "./types/Health";
 import type { CategoryTotal } from "./types/CategoryTotal";
 import type { EntryView } from "./types/EntryView";
+import type { ExtBreakdown } from "./types/ExtBreakdown";
+import type { Page } from "./types/Page";
+import type { TreeResponse } from "./types/TreeResponse";
 import type { JobCreated } from "./types/JobCreated";
 import type { Measure } from "./types/Measure";
 import type { ScanStarted } from "./types/ScanStarted";
@@ -165,4 +168,85 @@ export function useDeleteSnapshot() {
 
 export function useCancelJob() {
   return useMutation({ mutationFn: (jobId: number) => api<JobStatus>(`/jobs/${jobId}/cancel`, { method: "POST" }) });
+}
+const PAGE = 20;
+
+export function useTree(id: number | undefined, node: number, measure: Measure) {
+  return useQuery({
+    queryKey: ["snapshots", id, "tree", node, measure],
+    queryFn: ({ signal }) =>
+      api<SnapshotData<TreeResponse>>(`/snapshots/${id}/tree?node=${node}&depth=2&measure=${measure}`, { signal }),
+    enabled: id !== undefined,
+    staleTime: Infinity,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/** Largest files/folders under `node`, 20 per page ("Show more"). */
+export function useTopInfinite(
+  id: number | undefined,
+  kind: "files" | "dirs",
+  node: number,
+  measure: Measure,
+  category?: string | null,
+) {
+  const cat = kind === "files" && category ? `&category=${category}` : "";
+  const depth = kind === "dirs" ? "&max_depth=3" : "";
+  return useInfiniteQuery({
+    queryKey: ["snapshots", id, `top-${kind}`, node, measure, category ?? ""],
+    queryFn: ({ pageParam, signal }) =>
+      api<SnapshotData<EntryView[]>>(
+        `/snapshots/${id}/top-${kind}?node=${node}&measure=${measure}&limit=${PAGE}&offset=${pageParam}${cat}${depth}`,
+        { signal },
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => (last.data.length === PAGE ? all.length * PAGE : undefined),
+    enabled: id !== undefined,
+    staleTime: Infinity,
+  });
+}
+
+/** Children of a folder beyond the chart's cap (the "Other" bucket). */
+export function useChildrenInfinite(id: number | undefined, node: number | null, measure: Measure, skip: number) {
+  return useInfiniteQuery({
+    queryKey: ["snapshots", id, "children", node, measure, skip],
+    queryFn: ({ pageParam, signal }) =>
+      api<SnapshotData<Page<EntryView>>>(
+        `/snapshots/${id}/children?node=${node}&measure=${measure}&limit=${PAGE}&cursor=${pageParam}`,
+        { signal },
+      ),
+    initialPageParam: skip,
+    getNextPageParam: (last) => last.data.next_cursor ?? undefined,
+    enabled: id !== undefined && node !== null,
+    staleTime: Infinity,
+  });
+}
+
+export function useCategoriesAt(id: number | undefined, node: number) {
+  return useQuery({
+    queryKey: ["snapshots", id, "categories", node],
+    queryFn: ({ signal }) => api<SnapshotData<CategoryTotal[]>>(`/snapshots/${id}/categories?node=${node}`, { signal }),
+    enabled: id !== undefined,
+    staleTime: Infinity,
+  });
+}
+
+export function useExtensionsAt(id: number | undefined, node: number) {
+  return useQuery({
+    queryKey: ["snapshots", id, "extensions", node],
+    queryFn: ({ signal }) => api<SnapshotData<ExtBreakdown>>(`/snapshots/${id}/extensions?node=${node}&limit=20`, { signal }),
+    enabled: id !== undefined,
+    staleTime: Infinity,
+  });
+}
+
+export function useSnapshot(id: number) {
+  return useQuery({ queryKey: ["snapshots", "one", id], queryFn: ({ signal }) => api<Snapshot>(`/snapshots/${id}`, { signal }) });
+}
+
+export function useReveal() {
+  return useMutation({
+    mutationFn: (v: { snapshotId: number; entryId: number }) =>
+      api<void>("/shell/reveal", { method: "POST", body: { snapshot_id: v.snapshotId, entry_id: v.entryId } }),
+  });
 }

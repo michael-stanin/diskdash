@@ -28,6 +28,8 @@ pub enum ApiError {
     BadRequest(String),
     #[error("{0}")]
     Conflict(String),
+    #[error("{0}")]
+    Gone(String),
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -45,6 +47,7 @@ impl IntoResponse for ApiError {
             ApiError::Validation(_) => (StatusCode::UNPROCESSABLE_ENTITY, "validation"),
             ApiError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request"),
             ApiError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
+            ApiError::Gone(_) => (StatusCode::GONE, "gone"),
             ApiError::Internal(msg) => {
                 tracing::error!(error = %msg, "internal error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal")

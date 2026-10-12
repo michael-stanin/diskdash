@@ -56,10 +56,21 @@ impl InventorySource for RecordedSource {
     }
 }
 
+/// Records reveal requests instead of starting Explorer.
+#[derive(Default)]
+struct FakeLauncher(std::sync::Mutex<Vec<String>>);
+impl diskdash::shell::Launcher for FakeLauncher {
+    fn reveal(&self, path: &str) -> std::io::Result<()> {
+        self.0.lock().unwrap().push(path.to_string());
+        Ok(())
+    }
+}
+
 struct Fixture {
     _tmp: tempfile::TempDir,
     router: Router,
     events: Arc<EventBus>,
+    launcher: Arc<FakeLauncher>,
 }
 
 fn fixture(dev: bool) -> Fixture {
@@ -84,6 +95,7 @@ fn fixture(dev: bool) -> Fixture {
         br#"<html><head><meta name="diskdash-token" content="__DISKDASH_TOKEN__"></head></html>"#.to_vec(),
     );
     files.insert("assets/app-abc123.js".to_string(), b"console.log(1)".to_vec());
+    let launcher = Arc::new(FakeLauncher::default());
     let state = AppState {
         security: Arc::new(Security::with_token(PORT, TOKEN)),
         db,
@@ -92,12 +104,13 @@ fn fixture(dev: bool) -> Fixture {
         inventory,
         scans,
         own,
+        launcher: launcher.clone(),
         assets: Arc::new(MemoryAssets(files)),
         elevation: Arc::new(NotElevated),
         data_dir: dd.root().to_path_buf(),
         dev,
     };
-    Fixture { _tmp: tmp, router: build_router(state), events }
+    Fixture { _tmp: tmp, router: build_router(state), events, launcher }
 }
 
 fn req(method: Method, path: &str) -> axum::http::request::Builder {

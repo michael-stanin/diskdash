@@ -14,6 +14,7 @@ pub mod logging;
 pub mod scans;
 pub mod security;
 pub mod settings;
+pub mod shell;
 pub mod snapshots;
 pub mod system;
 pub mod time;

@@ -6,6 +6,7 @@ import { createQueryClient } from "@/api/queries";
 import { ScanDialogProvider } from "@/components/scans/ScanDialog";
 import { ToastProvider } from "@/components/Toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SizeModeProvider } from "@/lib/size-mode";
 import { ThemeProvider } from "@/lib/theme";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -17,7 +18,9 @@ export function Providers({ children }: { children: ReactNode }) {
           <TooltipProvider>
             <ToastProvider>
               <ScanDialogProvider>
-                <AlertsProvider>{children}</AlertsProvider>
+                <SizeModeProvider>
+                  <AlertsProvider>{children}</AlertsProvider>
+                </SizeModeProvider>
               </ScanDialogProvider>
             </ToastProvider>
           </TooltipProvider>

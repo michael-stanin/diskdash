@@ -24,8 +24,10 @@ use crate::logging;
 use crate::scans::{ScanRequest, ScanService, ScanStarted};
 use crate::security::{self, Security};
 use crate::settings::{self, Settings};
+use crate::shell::Launcher;
 use crate::snapshots::{
     self, CategoryTotal, EntryView, ErrorsResponse, ExtBreakdown, ListFilter, Measure, Page, Snapshot, SnapshotData,
+    TopQuery, TreeResponse,
 };
 use crate::system::{self, ElevationDetector, Health, SystemInfo};
 
@@ -38,6 +40,7 @@ pub struct AppState {
     pub inventory: Arc<InventoryService>,
     pub scans: Arc<ScanService>,
     pub own: OwnFiles,
+    pub launcher: Arc<dyn Launcher>,
     pub assets: Arc<dyn AssetSource>,
     pub elevation: Arc<dyn ElevationDetector>,
     pub data_dir: PathBuf,
@@ -65,6 +68,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/snapshots/{id}", get(get_snapshot).delete(delete_snapshot))
         .route("/snapshots/{id}/resume", post(resume_snapshot))
         .route("/snapshots/{id}/children", get(snapshot_children))
+        .route("/snapshots/{id}/tree", get(snapshot_tree))
+        .route("/shell/reveal", post(reveal))
         .route("/snapshots/{id}/top-files", get(snapshot_top_files))
         .route("/snapshots/{id}/top-dirs", get(snapshot_top_dirs))
         .route("/snapshots/{id}/categories", get(snapshot_categories))
@@ -285,6 +290,10 @@ async fn delete_snapshot(State(st): State<AppState>, Path(id): Path<i64>) -> Res
 #[derive(Deserialize)]
 struct EntryQuery {
     path: Option<String>,
+    node: Option<i64>,
+    depth: Option<u32>,
+    offset: Option<u32>,
+    category: Option<String>,
     under: Option<String>,
     #[serde(default)]
     measure: Measure,
@@ -321,7 +330,10 @@ async fn snapshot_children(
 ) -> Result<Json<SnapshotData<Page<EntryView>>>, ApiError> {
     blocking(move || {
         with_snapshot(&st, id, |c, _| {
-            let dir = snapshots::find_dir(c, q.path.as_deref())?;
+            let dir = match q.node {
+                Some(node) => snapshots::find_dir_by_id(c, node)?,
+                None => snapshots::find_dir(c, q.path.as_deref())?,
+            };
             snapshots::children(c, &dir, q.measure, q.limit.unwrap_or(100), q.cursor.unwrap_or(0))
         })
         .map(Json)
@@ -336,8 +348,13 @@ async fn snapshot_top_files(
 ) -> Result<Json<SnapshotData<Vec<EntryView>>>, ApiError> {
     blocking(move || {
         with_snapshot(&st, id, |c, _| {
-            let dir = snapshots::find_dir(c, q.under.as_deref())?;
-            snapshots::top_files(c, &dir, q.measure, q.limit.unwrap_or(20))
+            let dir = match q.node {
+                Some(node) => snapshots::find_dir_by_id(c, node)?,
+                None => snapshots::find_dir(c, q.under.as_deref())?,
+            };
+            let tq =
+                TopQuery { limit: q.limit.unwrap_or(20), offset: q.offset.unwrap_or(0), category: q.category.clone() };
+            snapshots::top_files(c, &dir, q.measure, &tq)
         })
         .map(Json)
     })
@@ -351,8 +368,12 @@ async fn snapshot_top_dirs(
 ) -> Result<Json<SnapshotData<Vec<EntryView>>>, ApiError> {
     blocking(move || {
         with_snapshot(&st, id, |c, _| {
-            let dir = snapshots::find_dir(c, q.under.as_deref())?;
-            snapshots::top_dirs(c, &dir, q.max_depth, q.measure, q.limit.unwrap_or(20))
+            let dir = match q.node {
+                Some(node) => snapshots::find_dir_by_id(c, node)?,
+                None => snapshots::find_dir(c, q.under.as_deref())?,
+            };
+            let tq = TopQuery { limit: q.limit.unwrap_or(20), offset: q.offset.unwrap_or(0), category: None };
+            snapshots::top_dirs(c, &dir, q.max_depth, q.measure, &tq)
         })
         .map(Json)
     })
@@ -366,7 +387,10 @@ async fn snapshot_categories(
 ) -> Result<Json<SnapshotData<Vec<CategoryTotal>>>, ApiError> {
     blocking(move || {
         with_snapshot(&st, id, |c, _| {
-            let dir = snapshots::find_dir(c, q.under.as_deref())?;
+            let dir = match q.node {
+                Some(node) => snapshots::find_dir_by_id(c, node)?,
+                None => snapshots::find_dir(c, q.under.as_deref())?,
+            };
             snapshots::categories(c, &dir)
         })
         .map(Json)
@@ -381,10 +405,58 @@ async fn snapshot_extensions(
 ) -> Result<Json<SnapshotData<ExtBreakdown>>, ApiError> {
     blocking(move || {
         with_snapshot(&st, id, |c, _| {
-            let dir = snapshots::find_dir(c, q.under.as_deref())?;
+            let dir = match q.node {
+                Some(node) => snapshots::find_dir_by_id(c, node)?,
+                None => snapshots::find_dir(c, q.under.as_deref())?,
+            };
             snapshots::extensions(c, &dir, q.limit.unwrap_or(20))
         })
         .map(Json)
+    })
+    .await
+}
+
+/// Children (and grandchildren) of a node, capped per level, for the treemap.
+async fn snapshot_tree(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Query(q): Query<EntryQuery>,
+) -> Result<Json<SnapshotData<TreeResponse>>, ApiError> {
+    let settings = load_settings(&st.db).await?;
+    blocking(move || {
+        with_snapshot(&st, id, |c, _| {
+            let limit = q.limit.unwrap_or(settings.chart_children_per_level);
+            snapshots::tree(c, q.node.unwrap_or(0), q.depth.unwrap_or(2).clamp(1, 2), q.measure, limit)
+        })
+        .map(Json)
+    })
+    .await
+}
+
+#[derive(Deserialize, TS)]
+#[ts(export)]
+pub struct RevealRequest {
+    #[ts(type = "number")]
+    pub snapshot_id: i64,
+    #[ts(type = "number")]
+    pub entry_id: i64,
+}
+
+/// Show an item from a snapshot in Explorer. The path comes from the snapshot,
+/// never from the client.
+async fn reveal(
+    State(st): State<AppState>,
+    Json(req): Json<RevealRequest>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    blocking(move || {
+        let snap = load_snapshot(&st.db, req.snapshot_id)?;
+        let conn = snapshots::open_snapshot(&st.own, &snap)?;
+        let (path, _) = snapshots::entry_path(&conn, req.entry_id)?;
+        if !crate::shell::exists(&path) {
+            return Err(ApiError::Gone(format!("path no longer exists: {path}")));
+        }
+        st.launcher.reveal(&path).map_err(ApiError::internal)?;
+        Ok(axum::http::StatusCode::NO_CONTENT)
     })
     .await
 }

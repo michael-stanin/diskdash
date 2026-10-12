@@ -295,6 +295,9 @@ fn add_file(t: &mut DirTotals, r: &Row, counts: bool) {
         t.files += 1;
         t.max_mtime = t.max_mtime.max(r.mtime);
         t.max_atime = t.max_atime.max(r.atime);
+        if let Some(cat) = r.category {
+            t.cats[usize::from(cat).min(9)] += r.alloc;
+        }
     }
 }
 
@@ -306,6 +309,9 @@ fn add_dir(parent: &mut DirTotals, child: &DirTotals) {
     parent.dirs += 1 + child.dirs;
     parent.max_mtime = parent.max_mtime.max(child.max_mtime);
     parent.max_atime = parent.max_atime.max(child.max_atime);
+    for (a, b) in parent.cats.iter_mut().zip(child.cats.iter()) {
+        *a += b;
+    }
 }
 
 struct Batch<'a> {
@@ -698,6 +704,7 @@ fn write_root(conn: &mut Connection, root: &str) -> rusqlite::Result<()> {
                     max_mtime: r.get(5)?,
                     max_atime: r.get(6)?,
                     last_desc_id: 0,
+                    cats: [0; 10],
                 },
             ))
         })?

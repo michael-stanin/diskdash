@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, Info, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export interface ToastMessage {
   id: number;
   title: string;
-  tone: "success" | "info";
+  tone: "success" | "info" | "error";
 }
 
 interface ToastContextValue {
@@ -39,8 +39,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={t.id}
             className="pointer-events-auto flex items-center gap-2.5 rounded-xl border border-border bg-card-raised py-2.5 pr-2 pl-3.5 text-[13px] shadow-popover"
           >
-            <span className={cn("[&_svg]:size-4", t.tone === "success" ? "text-success" : "text-primary")}>
-              {t.tone === "success" ? <CheckCircle2 /> : <Info />}
+            <span
+              className={cn(
+                "[&_svg]:size-4",
+                t.tone === "success" ? "text-success" : t.tone === "error" ? "text-danger" : "text-primary",
+              )}
+            >
+              {t.tone === "success" ? <CheckCircle2 /> : t.tone === "error" ? <AlertTriangle /> : <Info />}
             </span>
             {t.title}
             <button

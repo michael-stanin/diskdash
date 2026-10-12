@@ -55,6 +55,7 @@ async fn main() -> anyhow::Result<()> {
         inventory,
         scans,
         own,
+        launcher: Arc::new(diskdash::shell::ExplorerLauncher),
         assets: Arc::new(EmbeddedAssets),
         elevation: Arc::new(WindowsElevation),
         data_dir: data_dir.root().to_path_buf(),

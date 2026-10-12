@@ -191,6 +191,17 @@ fn exact_totals_on_the_full_fixture() {
     let video: i64 = conn.query_row("SELECT size FROM category_totals WHERE category = 0", [], |r| r.get(0)).unwrap();
     assert_eq!(video as u64, 2 * MIB);
 
+    // Dominant category per directory.
+    let top_cat = |name: &str| -> Option<i64> {
+        conn.query_row("SELECT top_category FROM entries WHERE name = ?1 AND kind = 1", [name], |r| r.get(0)).unwrap()
+    };
+    assert_eq!(top_cat("media"), Some(0), "media folder is mostly video");
+    assert_eq!(top_cat("docs"), Some(5), "docs folder is mostly documents");
+    let root_cat: Option<i64> =
+        conn.query_row("SELECT top_category FROM entries WHERE id = 0", [], |r| r.get(0)).unwrap();
+    // By allocated bytes: the 64 MiB sparse file only occupies ~64 KiB, so the 2 MiB video wins.
+    assert_eq!(root_cat, Some(0));
+
     // Newest descendant time on a directory.
     let docs = by_name(&es, "docs");
     let newest = es.iter().filter(|e| e.parent == Some(docs.id)).filter_map(|e| e.mtime).max();

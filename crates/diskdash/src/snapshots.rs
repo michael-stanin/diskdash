@@ -249,6 +249,8 @@ pub struct EntryView {
     pub alloc: u64,
     pub modified: Option<String>,
     pub category: Option<String>,
+    /// Directories: the category holding the most bytes below.
+    pub top_category: Option<String>,
     pub ext: Option<String>,
     #[ts(type = "number | null")]
     pub file_count: Option<u64>,
@@ -266,8 +268,26 @@ fn rfc3339(secs: Option<i64>) -> Option<String> {
     Some(humantime::format_rfc3339_seconds(UNIX_EPOCH + Duration::from_secs(s as u64)).to_string())
 }
 
-const ENTRY_COLS: &str = "e.id, e.name, e.kind, e.size, e.alloc, e.mtime, e.category, e.ext, e.file_count, e.dir_count,
-    e.max_mtime, e.flags, e.hardlink_of, e.link_target, coalesce(e.path, p.path)";
+/// Column list for [`entry_row`]. Snapshots written before `top_category`
+/// existed read it as NULL.
+fn entry_cols(conn: &Connection) -> String {
+    let top = if has_column(conn, "top_category") { "e.top_category" } else { "NULL" };
+    format!(
+        "e.id, e.name, e.kind, e.size, e.alloc, e.mtime, e.category, e.ext, e.file_count, e.dir_count,
+         e.max_mtime, e.flags, e.hardlink_of, e.link_target, coalesce(e.path, p.path), {top}, e.parent_id, e.depth"
+    )
+}
+
+fn has_column(conn: &Connection, col: &str) -> bool {
+    conn.prepare("SELECT name FROM pragma_table_info('entries')")
+        .and_then(|mut s| s.query_map([], |r| r.get::<_, String>(0))?.collect::<Result<Vec<_>, _>>())
+        .map(|cols| cols.iter().any(|c| c == col))
+        .unwrap_or(false)
+}
+
+fn cat_key(code: Option<i64>) -> Option<String> {
+    code.map(|c| Category::from_code(c as u8).key().to_string())
+}
 
 fn entry_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<EntryView> {
     let kind = match r.get::<_, i64>(2)? {
@@ -290,7 +310,8 @@ fn entry_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<EntryView> {
         size: r.get::<_, i64>(3)?.max(0) as u64,
         alloc: r.get::<_, i64>(4)?.max(0) as u64,
         modified: rfc3339(r.get(5)?),
-        category: r.get::<_, Option<i64>>(6)?.map(|c| Category::from_code(c as u8).key().to_string()),
+        category: cat_key(r.get(6)?),
+        top_category: cat_key(r.get(15)?),
         ext: r.get::<_, Option<String>>(7)?.filter(|e| !e.is_empty()),
         file_count: r.get::<_, Option<i64>>(8)?.map(|v| v.max(0) as u64),
         dir_count: r.get::<_, Option<i64>>(9)?.map(|v| v.max(0) as u64),
@@ -347,9 +368,10 @@ pub fn children(
 ) -> Result<Page<EntryView>, ApiError> {
     let limit = limit.clamp(1, MAX_PAGE);
     let col = measure.column();
+    let cols = entry_cols(conn);
     let mut stmt = conn
         .prepare(&format!(
-            "SELECT {ENTRY_COLS} FROM entries e LEFT JOIN entries p ON p.id = e.parent_id
+            "SELECT {cols} FROM entries e LEFT JOIN entries p ON p.id = e.parent_id
              WHERE e.parent_id = ?1 AND e.id != 0 ORDER BY e.{col} DESC, e.id LIMIT ?2 OFFSET ?3"
         ))
         .map_err(ApiError::internal)?;
@@ -366,16 +388,40 @@ fn page(mut items: Vec<EntryView>, limit: u32, cursor: u32) -> Result<Page<Entry
     Ok(Page { items, next_cursor: more.then_some(cursor + limit) })
 }
 
-pub fn top_files(conn: &Connection, under: &DirRef, measure: Measure, limit: u32) -> Result<Vec<EntryView>, ApiError> {
+#[derive(Debug, Clone, Default)]
+pub struct TopQuery {
+    pub limit: u32,
+    pub offset: u32,
+    /// Category key filter (files only).
+    pub category: Option<String>,
+}
+
+pub fn top_files(
+    conn: &Connection,
+    under: &DirRef,
+    measure: Measure,
+    q: &TopQuery,
+) -> Result<Vec<EntryView>, ApiError> {
     let col = measure.column();
+    let cols = entry_cols(conn);
+    let category = match q.category.as_deref() {
+        None => None,
+        Some(k) => Some(
+            diskdash_core::category::ALL
+                .iter()
+                .find(|c| c.key() == k)
+                .map(|c| *c as i64)
+                .ok_or_else(|| ApiError::BadRequest(format!("unknown category {k}")))?,
+        ),
+    };
     let mut stmt = conn
         .prepare(&format!(
-            "SELECT {ENTRY_COLS} FROM entries e LEFT JOIN entries p ON p.id = e.parent_id
-             WHERE e.kind = 0 AND e.hardlink_of IS NULL AND e.id BETWEEN ?1 AND ?2
-             ORDER BY e.{col} DESC LIMIT ?3"
+            "SELECT {cols} FROM entries e LEFT JOIN entries p ON p.id = e.parent_id
+             WHERE e.kind = 0 AND e.hardlink_of IS NULL AND e.id BETWEEN ?1 AND ?2 AND (?5 IS NULL OR e.category = ?5)
+             ORDER BY e.{col} DESC LIMIT ?3 OFFSET ?4"
         ))
         .map_err(ApiError::internal)?;
-    stmt.query_map(params![under.id, under.last_desc, limit.clamp(1, MAX_PAGE)], entry_row)
+    stmt.query_map(params![under.id, under.last_desc, q.limit.clamp(1, MAX_PAGE), q.offset, category], entry_row)
         .and_then(|rows| rows.collect())
         .map_err(ApiError::internal)
 }
@@ -385,18 +431,19 @@ pub fn top_dirs(
     under: &DirRef,
     max_depth: Option<u32>,
     measure: Measure,
-    limit: u32,
+    q: &TopQuery,
 ) -> Result<Vec<EntryView>, ApiError> {
     let col = measure.column();
+    let cols = entry_cols(conn);
     let max_depth = max_depth.map(|d| under.depth + i64::from(d.max(1))).unwrap_or(i64::MAX);
     let mut stmt = conn
         .prepare(&format!(
-            "SELECT {ENTRY_COLS} FROM entries e LEFT JOIN entries p ON p.id = e.parent_id
+            "SELECT {cols} FROM entries e LEFT JOIN entries p ON p.id = e.parent_id
              WHERE e.kind = 1 AND e.id > ?1 AND e.id <= ?2 AND e.depth <= ?3
-             ORDER BY e.{col} DESC LIMIT ?4"
+             ORDER BY e.{col} DESC LIMIT ?4 OFFSET ?5"
         ))
         .map_err(ApiError::internal)?;
-    stmt.query_map(params![under.id, under.last_desc, max_depth, limit.clamp(1, MAX_PAGE)], entry_row)
+    stmt.query_map(params![under.id, under.last_desc, max_depth, q.limit.clamp(1, MAX_PAGE), q.offset], entry_row)
         .and_then(|rows| rows.collect())
         .map_err(ApiError::internal)
 }
@@ -562,6 +609,153 @@ pub fn errors(conn: &Connection, code: Option<u32>, limit: u32, cursor: u32) -> 
     let more = items.len() > limit as usize;
     items.truncate(limit as usize);
     Ok(ErrorsResponse { summary, items, next_cursor: more.then_some(cursor + limit) })
+}
+
+/// A directory by entry id.
+pub fn find_dir_by_id(conn: &Connection, id: i64) -> Result<DirRef, ApiError> {
+    conn.query_row("SELECT id, depth, last_desc_id FROM entries WHERE id = ?1 AND kind = 1", [id], |r| {
+        Ok(DirRef { id: r.get(0)?, depth: r.get(1)?, last_desc: r.get::<_, Option<i64>>(2)?.unwrap_or(id) })
+    })
+    .optional()
+    .map_err(ApiError::internal)?
+    .ok_or_else(|| ApiError::NotFound(format!("no directory with id {id} in this snapshot")))
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct OtherBucket {
+    #[ts(type = "number")]
+    pub count: u64,
+    #[ts(type = "number")]
+    pub size: u64,
+    #[ts(type = "number")]
+    pub alloc: u64,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct TreeNode {
+    pub entry: EntryView,
+    /// Present when the level below was loaded.
+    pub children: Option<Vec<TreeNode>>,
+    /// Children beyond the per-level cap, folded together.
+    pub other: Option<OtherBucket>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct Crumb {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub name: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct TreeResponse {
+    pub node: TreeNode,
+    /// Root first, ending with the node itself.
+    pub ancestors: Vec<Crumb>,
+    pub limit: u32,
+}
+
+fn entry_by_id(conn: &Connection, id: i64) -> Result<EntryView, ApiError> {
+    let cols = entry_cols(conn);
+    conn.query_row(
+        &format!("SELECT {cols} FROM entries e LEFT JOIN entries p ON p.id = e.parent_id WHERE e.id = ?1"),
+        [id],
+        entry_row,
+    )
+    .optional()
+    .map_err(ApiError::internal)?
+    .ok_or_else(|| ApiError::NotFound(format!("no entry with id {id} in this snapshot")))
+}
+
+/// Up to `limit` largest children (links and hard-link repeats left out, as in
+/// the aggregates) plus an "Other" bucket so the level always sums to the parent.
+fn capped_children(
+    conn: &Connection,
+    parent: &EntryView,
+    measure: Measure,
+    limit: u32,
+) -> Result<(Vec<EntryView>, Option<OtherBucket>), ApiError> {
+    let cols = entry_cols(conn);
+    let col = measure.column();
+    let kids: Vec<EntryView> = conn
+        .prepare(&format!(
+            "SELECT {cols} FROM entries e LEFT JOIN entries p ON p.id = e.parent_id
+             WHERE e.parent_id = ?1 AND e.id != 0 AND e.kind != 2 AND e.hardlink_of IS NULL
+             ORDER BY e.{col} DESC, e.id LIMIT ?2"
+        ))
+        .and_then(|mut s| s.query_map(params![parent.id, limit], entry_row)?.collect())
+        .map_err(ApiError::internal)?;
+    let total: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM entries WHERE parent_id = ?1 AND id != 0 AND kind != 2 AND hardlink_of IS NULL",
+            [parent.id],
+            |r| r.get(0),
+        )
+        .map_err(ApiError::internal)?;
+    let count = (total.max(0) as u64).saturating_sub(kids.len() as u64);
+    let other = (count > 0).then(|| OtherBucket {
+        count,
+        size: parent.size.saturating_sub(kids.iter().map(|k| k.size).sum()),
+        alloc: parent.alloc.saturating_sub(kids.iter().map(|k| k.alloc).sum()),
+    });
+    Ok((kids, other))
+}
+
+/// The node, its children (and grandchildren when `depth` is 2), capped per level.
+pub fn tree(
+    conn: &Connection,
+    node_id: i64,
+    depth: u32,
+    measure: Measure,
+    limit: u32,
+) -> Result<TreeResponse, ApiError> {
+    // Owner decision: at most 20 per level (5 minimum) so tiles stay readable.
+    let limit = limit.clamp(5, 20);
+    let root = entry_by_id(conn, node_id)?;
+    if root.kind != EntryKind::Dir {
+        return Err(ApiError::BadRequest(format!("entry {node_id} is not a directory")));
+    }
+    let (kids, other) = capped_children(conn, &root, measure, limit)?;
+    let mut children = Vec::with_capacity(kids.len());
+    for k in kids {
+        let child = if depth >= 2 && k.kind == EntryKind::Dir && !k.access_denied {
+            let (grand, gother) = capped_children(conn, &k, measure, limit)?;
+            TreeNode {
+                children: Some(grand.into_iter().map(|g| TreeNode { entry: g, children: None, other: None }).collect()),
+                other: gother,
+                entry: k,
+            }
+        } else {
+            TreeNode { entry: k, children: None, other: None }
+        };
+        children.push(child);
+    }
+
+    // Walk up for the breadcrumb (depth is small; primary-key lookups).
+    let mut ancestors = Vec::new();
+    let mut cur: Option<i64> = Some(node_id);
+    while let Some(id) = cur {
+        let (name, path, parent): (String, Option<String>, Option<i64>) = conn
+            .query_row("SELECT name, path, parent_id FROM entries WHERE id = ?1", [id], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+            })
+            .map_err(ApiError::internal)?;
+        ancestors.push(Crumb { id, name, path: path.unwrap_or_default() });
+        cur = if id == 0 { None } else { parent };
+    }
+    ancestors.reverse();
+    Ok(TreeResponse { node: TreeNode { entry: root, children: Some(children), other }, ancestors, limit })
+}
+
+/// Resolve an entry's full path (for Explorer).
+pub fn entry_path(conn: &Connection, id: i64) -> Result<(String, EntryKind), ApiError> {
+    let e = entry_by_id(conn, id)?;
+    Ok((e.path, e.kind))
 }
 
 #[cfg(test)]

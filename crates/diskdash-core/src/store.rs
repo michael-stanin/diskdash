@@ -51,10 +51,21 @@ pub struct DirTotals {
     pub max_mtime: i64,
     pub max_atime: i64,
     pub last_desc_id: i64,
+    /// Allocated bytes per file category (index = `Category as u8`).
+    pub cats: [u64; 10],
 }
 
 impl DirTotals {
+    /// Category holding the most bytes below this directory.
+    pub fn top_category(&self) -> Option<u8> {
+        let (i, max) = self.cats.iter().enumerate().max_by_key(|(_, v)| **v)?;
+        (*max > 0).then_some(i as u8)
+    }
+
     pub fn add(&mut self, o: &DirTotals) {
+        for (a, b) in self.cats.iter_mut().zip(o.cats.iter()) {
+            *a += b;
+        }
         self.size += o.size;
         self.alloc += o.alloc;
         self.files += o.files;
@@ -102,9 +113,9 @@ pub fn insert_rows(conn: &mut Connection, rows: &[Row]) -> rusqlite::Result<()> 
         let mut stmt = tx.prepare_cached(
             "INSERT OR REPLACE INTO entries (id, parent_id, name, name_lower, kind, depth, size, alloc, ctime, mtime, atime,
               attrs, reparse_tag, file_id, nlink, hardlink_of, ext, category, flags, link_target, path,
-              file_count, dir_count, max_mtime, max_atime, last_desc_id)
+              file_count, dir_count, max_mtime, max_atime, last_desc_id, top_category)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21,
-                     ?22, ?23, ?24, ?25, ?26)",
+                     ?22, ?23, ?24, ?25, ?26, ?27)",
         )?;
         for r in rows {
             let d = r.dir;
@@ -135,6 +146,7 @@ pub fn insert_rows(conn: &mut Connection, rows: &[Row]) -> rusqlite::Result<()> 
                 d.map(|d| d.max_mtime),
                 d.map(|d| d.max_atime),
                 d.map(|d| d.last_desc_id),
+                d.and_then(|d| d.top_category()).map(i64::from),
             ])?;
         }
     }
@@ -229,6 +241,8 @@ pub fn finalize(conn: &Connection) -> rusqlite::Result<()> {
          INSERT INTO ext_totals (ext, category, file_count, size, alloc)
            SELECT coalesce(ext, ''), coalesce(max(category), 9), count(*), sum(size), sum(alloc) FROM entries
            WHERE kind = 0 AND hardlink_of IS NULL GROUP BY coalesce(ext, '');
+         UPDATE entries SET top_category = (SELECT category FROM category_totals ORDER BY alloc DESC LIMIT 1)
+           WHERE id = 0;
          PRAGMA optimize;",
     )
 }

@@ -34,8 +34,15 @@ export function readToken(name: string, el: Element = document.documentElement):
   return getComputedStyle(el).getPropertyValue(`--${name}`).trim();
 }
 
-export function categoryColor(key: CategoryKey): string {
-  return readToken(`cat-${key}`);
+export function categoryColor(key: CategoryKey | string | null | undefined): string {
+  const k = key && (CATEGORY_KEYS as readonly string[]).includes(key) ? key : "other";
+  return readToken(`cat-${k}`);
+}
+
+/** CSS colour for a category (for HTML elements; follows the theme). */
+export function categoryVar(key: string | null | undefined): string {
+  const k = key && (CATEGORY_KEYS as readonly string[]).includes(key) ? key : "other";
+  return `var(--cat-${k})`;
 }
 
 /** Theme object for `echarts.registerTheme` / `init(el, theme)`. */

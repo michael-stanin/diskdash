@@ -1,10 +1,13 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useParams } from "react-router";
-import { HardDrive } from "lucide-react";
+import { HardDrive, ScanSearch } from "lucide-react";
 import { PageHeader } from "@/app/PageHeader";
 import { ApiError } from "@/api/client";
 import { useDrive, useDrives, useSettings, useSnapshots } from "@/api/queries";
-import { DriveContents } from "@/components/scans/DriveContents";
+import { Button } from "@/components/ui/button";
+import { Tabs } from "@/components/ui/tabs";
+import { SnapshotSummary } from "@/components/usage/SnapshotSummary";
+import { LazyUsageExplorer } from "@/components/usage/LazyUsageExplorer";
 import { ScanActivity } from "@/components/scans/ScanActivity";
 import { useScanDialog } from "@/components/scans/ScanDialog";
 import { SnapshotHistory } from "@/components/scans/SnapshotHistory";
@@ -121,6 +124,8 @@ export function DriveDetailPage() {
   const root = d?.letters[0] ? `${d.letters[0]}:\\` : d?.mount_paths[0];
   const latestComplete = snapshots.data?.find((s) => s.status === "complete" && s.root === root);
   const scanning = Boolean(snapshots.data?.some((s) => s.status === "running"));
+  const [tab, setTab] = useState<"usage" | "hardware" | "history">("usage");
+  const scan = () => root && scanDialog.open([root]);
 
   if (drive.isError) {
     const notFound = drive.error instanceof ApiError && drive.error.status === 404;
@@ -166,15 +171,55 @@ export function DriveDetailPage() {
       </section>
       <ScanActivity />
       {d && (
-        <DriveContents snapshot={latestComplete} scanning={scanning} onScan={() => root && scanDialog.open([root])} />
+        <Tabs
+          label="Drive sections"
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { key: "usage", label: "Usage" },
+            { key: "hardware", label: "Hardware & health" },
+            { key: "history", label: "Scan history" },
+          ]}
+        >
+          {tab === "usage" &&
+            (snapshots.isPending ? (
+              <Skeleton className="h-[440px] w-full rounded-card" />
+            ) : latestComplete ? (
+              <>
+                <SnapshotSummary snapshot={latestComplete} onRescan={scan} scanning={scanning} />
+                <LazyUsageExplorer snapshot={latestComplete} />
+              </>
+            ) : (
+              <Card>
+                <EmptyState
+                  icon={<ScanSearch />}
+                  title={scanning ? "Scanning…" : "Not scanned yet"}
+                  description="A scan lists every folder and file on this drive (read-only) so diskdash can show where the space goes."
+                  action={
+                    !scanning && (
+                      <Button variant="primary" onClick={scan}>
+                        <ScanSearch /> Scan now
+                      </Button>
+                    )
+                  }
+                />
+              </Card>
+            ))}
+          {tab === "hardware" && (
+            <>
+              {d.physical_disks.length === 0 && (
+                <Card>
+                  <EmptyState icon={<HardDrive />} title="Physical disk unknown" description="Windows did not report which disk this volume is on." />
+                </Card>
+              )}
+              {d.physical_disks.map((p) => (
+                <DiskCard key={p.number} disk={p} trim={all.data?.trim} />
+              ))}
+            </>
+          )}
+          {tab === "history" && <SnapshotHistory snapshots={snapshots.data} loading={snapshots.isPending} />}
+        </Tabs>
       )}
-      {d && d.physical_disks.length === 0 && (
-        <Card>
-          <EmptyState icon={<HardDrive />} title="Physical disk unknown" description="Windows did not report which disk this volume is on." />
-        </Card>
-      )}
-      {d?.physical_disks.map((p) => <DiskCard key={p.number} disk={p} trim={all.data?.trim} />)}
-      {d && <SnapshotHistory snapshots={snapshots.data} loading={snapshots.isPending} />}
     </>
   );
 }

@@ -63,6 +63,7 @@ export function DrivesPage() {
               drive={d}
               thresholds={thresholds}
               lastScan={latest.data?.find((s) => s.volume_id === d.id && s.root === `${d.letters[0]}:\\`)?.finished_at}
+              limitedHealth={!data.sources.elevated}
             />
           ))}
         </div>

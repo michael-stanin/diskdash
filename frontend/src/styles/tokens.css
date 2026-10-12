@@ -66,7 +66,7 @@
   --media-unknown-fg: #4b525c;
 
   /* File-type categories (charts + legends) */
-  --cat-video: #3d74e0;
+  --cat-video: #346ad6;
   --cat-images: #8e5ff0;
   --cat-audio: #d6488a;
   --cat-archives: #c58400;
@@ -75,7 +75,10 @@
   --cat-code: #1e9e63;
   --cat-disk-images: #1c93ad;
   --cat-system: #6b7280;
-  --cat-other: #9aa1ab;
+  --cat-other: #7c8490;
+  /* Labels on coloured tiles: whichever reads better is chosen at runtime. */
+  --on-color-dark: #0b0d10;
+  --on-color-light: #ffffff;
 
   --shadow-popover: 0 8px 24px rgb(16 24 40 / 0.12), 0 2px 6px rgb(16 24 40 / 0.06);
   --radius: 12px;
@@ -143,7 +146,9 @@
   --cat-code: #5cc08a;
   --cat-disk-images: #4fb3c9;
   --cat-system: #8a919c;
-  --cat-other: #3a3f48;
+  --cat-other: #6b727d;
+  --on-color-dark: #0b0d10;
+  --on-color-light: #ffffff;
 
   --shadow-popover: 0 12px 32px rgb(0 0 0 / 0.45), 0 2px 8px rgb(0 0 0 / 0.3);
 }

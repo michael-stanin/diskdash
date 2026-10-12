@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS entries (
     dir_count    INTEGER,
     max_mtime    INTEGER,
     max_atime    INTEGER,
-    last_desc_id INTEGER
+    last_desc_id INTEGER,
+    top_category INTEGER                    -- directories: category with the most bytes below
 );
 
 CREATE TABLE IF NOT EXISTS errors (

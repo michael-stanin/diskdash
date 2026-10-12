@@ -6,6 +6,7 @@ import { DriveDetailPage } from "@/pages/DriveDetailPage";
 import { DrivesPage } from "@/pages/DrivesPage";
 import { NotFoundPage, PlansPage, RecommendationsPage } from "@/pages/placeholders";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { SnapshotPage } from "@/pages/SnapshotPage";
 
 export const routes = [
   {
@@ -14,6 +15,7 @@ export const routes = [
       { path: "/", element: <HomePage /> },
       { path: "/drives", element: <DrivesPage /> },
       { path: "/drives/:id", element: <DriveDetailPage /> },
+      { path: "/snapshots/:id", element: <SnapshotPage /> },
       { path: "/recommendations", element: <RecommendationsPage /> },
       { path: "/plans", element: <PlansPage /> },
       { path: "/settings", element: <SettingsPage /> },

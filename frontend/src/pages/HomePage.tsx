@@ -123,7 +123,13 @@ export function HomePage() {
             ) : (
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
                 {list.map((d) => (
-                  <DriveCard key={d.id} drive={d} thresholds={thresholds} lastScan={lastScanFor(d.id, d.letters[0])} />
+                  <DriveCard
+                    key={d.id}
+                    drive={d}
+                    thresholds={thresholds}
+                    lastScan={lastScanFor(d.id, d.letters[0])}
+                    limitedHealth={!data.sources.elevated}
+                  />
                 ))}
               </div>
             )}

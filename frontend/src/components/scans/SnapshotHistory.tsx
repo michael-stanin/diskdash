@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { History, Play, Trash2 } from "lucide-react";
+import { Link } from "react-router";
 import { useDeleteSnapshot, useResumeScan } from "@/api/queries";
 import type { Snapshot } from "@/api/types/Snapshot";
 import type { SnapshotStatus } from "@/api/types/SnapshotStatus";
@@ -45,7 +46,13 @@ export function SnapshotHistory({ snapshots, loading }: { snapshots?: Snapshot[]
               <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-semibold", STATUS[s.status].className)}>
                 {STATUS[s.status].label}
               </span>
-              <span className="font-mono text-xs text-foreground-secondary">{s.root}</span>
+              {s.status === "complete" ? (
+                <Link to={`/snapshots/${s.id}`} className="font-mono text-xs text-primary no-underline hover:text-primary-hover">
+                  {s.root}
+                </Link>
+              ) : (
+                <span className="font-mono text-xs text-foreground-secondary">{s.root}</span>
+              )}
               <span className="text-muted-foreground">
                 <RelativeTime date={s.started_at} />
               </span>

@@ -18,15 +18,20 @@ const HEALTH: Record<HealthStatus, { label: string; dot: string }> = {
   unknown: { label: "Health unknown", dot: "bg-subtle-foreground" },
 };
 
-export function HealthPill({ status, reasons }: { status: HealthStatus; reasons?: string[] }) {
+export function HealthPill({ status, reasons, limited }: { status: HealthStatus; reasons?: string[]; limited?: boolean }) {
   const h = HEALTH[status];
+  const tip = [
+    ...(reasons ?? []),
+    ...(limited ? ["Limited: detailed SMART counters need administrator rights"] : []),
+  ];
   const pill = (
-    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" tabIndex={reasons?.length ? 0 : -1}>
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" tabIndex={tip.length ? 0 : -1}>
       <span className={cn("size-[7px] rounded-full", h.dot)} />
       {h.label}
+      {limited && <span className="text-subtle-foreground">· limited (not elevated)</span>}
     </span>
   );
-  return reasons && reasons.length > 0 ? <Tooltip content={reasons.join(" · ")}>{pill}</Tooltip> : pill;
+  return tip.length > 0 ? <Tooltip content={tip.join(" · ")}>{pill}</Tooltip> : pill;
 }
 
 export function driveName(d: Drive): string {
@@ -57,9 +62,11 @@ interface DriveCardProps {
   thresholds: { percent: number; floorGib: number };
   /** Finish time of the latest complete whole-drive scan. */
   lastScan?: string | null;
+  /** Health from basic Windows status only (not elevated). */
+  limitedHealth?: boolean;
 }
 
-export function DriveCard({ drive: d, thresholds, lastScan }: DriveCardProps) {
+export function DriveCard({ drive: d, thresholds, lastScan, limitedHealth }: DriveCardProps) {
   const state = fillState(d.used_fraction, d.low_space);
   const free = formatBytesParts(d.free);
   const model = d.physical_disks.map((p) => p.model).join(" + ") || "Physical disk unknown";
@@ -92,7 +99,7 @@ export function DriveCard({ drive: d, thresholds, lastScan }: DriveCardProps) {
       <FillBar usedFraction={d.used_fraction} state={state} label={`${driveName(d)} ${formatPercent(d.used_fraction)} used`} />
 
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground">
-        <HealthPill status={d.health} reasons={d.physical_disks.flatMap((p) => p.health.reasons)} />
+        <HealthPill status={d.health} reasons={d.physical_disks.flatMap((p) => p.health.reasons)} limited={limitedHealth} />
         <span>{d.filesystem || "—"}</span>
         {low && <span className="font-medium text-fill-warning-text">{low}</span>}
         {lastScan ? (

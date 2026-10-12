@@ -76,8 +76,8 @@ impl Settings {
         range("ssd_scan_concurrency", (1..=16).contains(&self.ssd_scan_concurrency), "must be between 1 and 16");
         range(
             "chart_children_per_level",
-            (5..=50).contains(&self.chart_children_per_level),
-            "must be between 5 and 50",
+            (5..=20).contains(&self.chart_children_per_level),
+            "must be between 5 and 20",
         );
         let bad_override = self.hardlink_overrides.keys().any(|k| !k.starts_with(r"\\?\Volume{"));
         range("hardlink_overrides", !bad_override, "keys must be volume GUID paths");
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn out_of_range_values_are_reported_per_field() {
-        let s = Settings { low_space_percent: 150.0, chart_children_per_level: 2, ..Settings::default() };
+        let s = Settings { low_space_percent: 150.0, chart_children_per_level: 30, ..Settings::default() };
         let e = s.validate();
         assert!(e.contains_key("low_space_percent"));
         assert!(e.contains_key("chart_children_per_level"));
