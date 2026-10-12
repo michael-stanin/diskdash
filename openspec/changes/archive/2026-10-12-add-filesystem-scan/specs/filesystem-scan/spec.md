@@ -16,11 +16,11 @@ The system SHALL let the user start a scan of one or more roots, where each root
 - **THEN** the request is rejected with "only fixed internal drives can be scanned", and nothing on that drive is accessed
 
 ### Requirement: Read-only traversal
-The scanner MUST NOT create, modify, rename, move or delete any file or directory. It MUST NOT open any file for writing or for reading its contents. It MUST NOT change any timestamp or attribute. It SHALL obtain metadata only through directory enumeration and metadata queries (`FindFirstFileExW`, `GetFileInformationByHandleEx` on a handle opened with `FILE_READ_ATTRIBUTES` only, `GetCompressedFileSizeW`). The only files the scanner writes are its own snapshot database files in the app data directory.
+The scanner MUST NOT create, modify, rename, move or delete any file or directory. It MUST NOT open any file for writing or for reading its contents. It MUST NOT change any timestamp or attribute. (The one effect it cannot avoid: NTFS may update a directory's last-access time when the directory is listed, as it does for any program; suppressing that would need write access. File access times are never affected, because file contents are never read.) It SHALL obtain metadata only through directory enumeration and metadata queries (`FindFirstFileExW`, `GetFileInformationByHandleEx` on a handle opened with `FILE_READ_ATTRIBUTES` only, `GetCompressedFileSizeW`). The only files the scanner writes are its own snapshot database files in the app data directory.
 
 #### Scenario: Fixture unchanged after scan
 - **WHEN** a fixture tree is scanned
-- **THEN** a before/after comparison of every fixture file's size, mtime, ctime, attributes and content hash shows no change
+- **THEN** a before/after comparison shows no change to any file's size, timestamps (including last access) or attributes, and no change to any directory other than its OS-maintained last-access time
 
 #### Scenario: Cloud placeholder not hydrated
 - **WHEN** the scan encounters a file with `FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS` or `FILE_ATTRIBUTE_OFFLINE`
@@ -138,7 +138,7 @@ A running scan SHALL report, at most 4 times per second: entries scanned, bytes 
 - **THEN** progress shows counts and no ETA
 
 ### Requirement: Cancel and resume
-The user SHALL be able to cancel a scan. A cancelled or interrupted volume scan SHALL keep its completed top-level subtrees (children of the root, and children of directories at depth 1 whose subtree has more than 10,000 entries). Resuming SHALL re-scan only the subtrees that did not complete, and then recompute the root aggregates. A snapshot SHALL be marked `complete` only after all subtrees finish. A resumed snapshot SHALL record that it was resumed, along with the time span it covers.
+The user SHALL be able to cancel a scan. A cancelled or interrupted scan SHALL keep its completed work units: the files directly in the root form one unit, and each subdirectory of the root forms another. Resuming SHALL re-scan only the subtrees that did not complete, and then recompute the root aggregates. A snapshot SHALL be marked `complete` only after all subtrees finish. A resumed snapshot SHALL record that it was resumed, along with the time span it covers.
 
 #### Scenario: Cancel
 - **WHEN** the user cancels a running scan

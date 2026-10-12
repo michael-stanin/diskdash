@@ -80,7 +80,7 @@ Entry ids are assigned in DFS pre-order, and each directory stores `last_desc_id
 - If two threads meet the same multi-link file, the first one to claim it in the hard-link map (under a lock) owns its size. Totals are deterministic. Which path is the owner is not, and that is documented.
 
 ### D9. Cancel and resume
-- Resume state is stored in `snapshots.resume_state`: an ordered list of top-level work units (children of the root, and large depth-1 children expanded one level), each with status `pending | done` and its id block.
+- Resume state is stored in the snapshot file's `units` table: unit 0 is the root's own files, units 1… are the root's subdirectories, each with status `pending | done`, its id block and its totals. (Expanding very large depth-1 folders into finer units was considered; it is not needed at the measured speed, 2 min 39 s for all of C:.)
 - On resume, the rows of incomplete units are deleted by id-block range, those units are re-run, and the root aggregates are recomputed from the unit summaries.
 - Resume is refused if the volume serial changed.
 - Cancel sets the job's cancel flag. Walkers check it at every directory boundary and at least every 1,000 entries.

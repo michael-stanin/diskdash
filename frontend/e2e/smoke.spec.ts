@@ -78,6 +78,23 @@ test("home shows this machine's drives and the detail page opens", async ({ page
   expect(errors).toEqual([]);
 });
 
+test("scan dialog lists drives and validates a folder", async ({ page }, info) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Scan drives" }).click();
+  const dialog = page.getByRole("dialog", { name: "Scan drives" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("checkbox").first()).toBeVisible({ timeout: 20_000 });
+  await expectNoContrastIssues(page);
+  await page.screenshot({ path: info.outputPath(`scan-dialog-${info.project.name}.png`) });
+
+  // An out-of-scope path is rejected with a field message; nothing is scanned.
+  await dialog.getByLabel("Or a single folder").fill("Z:\\nowhere");
+  await dialog.getByRole("button", { name: "Start scan" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("fixed internal");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+});
+
 test("settings validation shows field errors", async ({ page }) => {
   await page.goto("/settings");
   const stale = page.getByLabel("Stale after");

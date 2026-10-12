@@ -146,6 +146,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.5.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98b0cc327b5bc766e7fda9c9260cc0fa81b43a8e240440422dff70788e3f9ef1"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-utils"
+version = "0.8.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
+
+[[package]]
 name = "crypto-common"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -171,6 +186,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "diskdash-core",
  "diskdash-inventory",
  "diskdash-store",
  "futures",
@@ -184,6 +200,7 @@ dependencies = [
  "serde_json",
  "subtle",
  "tempfile",
+ "test-fixtures",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -197,6 +214,15 @@ dependencies = [
 [[package]]
 name = "diskdash-core"
 version = "0.1.0"
+dependencies = [
+ "crossbeam-channel",
+ "rusqlite",
+ "tempfile",
+ "test-fixtures",
+ "thiserror",
+ "tracing",
+ "windows",
+]
 
 [[package]]
 name = "diskdash-inventory"
@@ -950,6 +976,7 @@ name = "test-fixtures"
 version = "0.1.0"
 dependencies = [
  "tempfile",
+ "windows",
 ]
 
 [[package]]

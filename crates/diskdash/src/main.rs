@@ -36,6 +36,16 @@ async fn main() -> anyhow::Result<()> {
     let inventory =
         Arc::new(InventoryService::new(Box::new(SystemSource::detect(elevated)), db.clone(), events.clone()));
     spawn_auto_refresh(inventory.clone(), events.clone());
+    if let Err(e) = diskdash::snapshots::reconcile(&db, &own, &data_dir.snapshots_dir()) {
+        tracing::warn!(error = %e, "snapshot reconciliation failed");
+    }
+    let scans = Arc::new(diskdash::scans::ScanService {
+        db: db.clone(),
+        own: own.clone(),
+        inventory: inventory.clone(),
+        jobs: jobs.clone(),
+        elevated,
+    });
 
     let state = AppState {
         security: Arc::new(Security::new(config.port)),
@@ -43,6 +53,8 @@ async fn main() -> anyhow::Result<()> {
         jobs: jobs.clone(),
         events,
         inventory,
+        scans,
+        own,
         assets: Arc::new(EmbeddedAssets),
         elevation: Arc::new(WindowsElevation),
         data_dir: data_dir.root().to_path_buf(),

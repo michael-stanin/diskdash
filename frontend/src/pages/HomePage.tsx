@@ -1,6 +1,8 @@
-import { AlertTriangle, HardDrive, HeartPulse, RotateCw } from "lucide-react";
+import { AlertTriangle, HardDrive, HeartPulse, RotateCw, ScanSearch } from "lucide-react";
 import { PageHeader } from "@/app/PageHeader";
-import { useDrives, useRefreshDrives, useSettings } from "@/api/queries";
+import { useDrives, useLatestSnapshots, useRefreshDrives, useSettings } from "@/api/queries";
+import { ScanActivity } from "@/components/scans/ScanActivity";
+import { useScanDialog } from "@/components/scans/ScanDialog";
 import { DriveCard, DriveCardSkeleton } from "@/components/drives/DriveCard";
 import { excludedNote } from "@/components/drives/excluded";
 import { RelativeTime, SizeDisplay } from "@/components/SizeDisplay";
@@ -16,6 +18,10 @@ export function HomePage() {
   const drives = useDrives();
   const settings = useSettings();
   const refresh = useRefreshDrives();
+  const latest = useLatestSnapshots();
+  const scanDialog = useScanDialog();
+  const lastScanFor = (id: string, letter?: string) =>
+    latest.data?.find((s) => s.volume_id === id && s.root === `${letter}:\\`)?.finished_at ?? null;
   const thresholds = {
     percent: settings.data?.low_space_percent ?? 10,
     floorGib: settings.data?.low_space_floor_gib ?? 20,
@@ -44,11 +50,18 @@ export function HomePage() {
           )
         }
         actions={
-          <Button variant="secondary" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
-            <RotateCw className={refresh.isPending ? "animate-spin" : undefined} /> Refresh
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
+              <RotateCw className={refresh.isPending ? "animate-spin" : undefined} /> Refresh
+            </Button>
+            <Button variant="primary" onClick={() => scanDialog.open()}>
+              <ScanSearch /> Scan drives
+            </Button>
+          </>
         }
       />
+
+      <ScanActivity />
 
       {drives.isError ? (
         <Card>
@@ -110,7 +123,7 @@ export function HomePage() {
             ) : (
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
                 {list.map((d) => (
-                  <DriveCard key={d.id} drive={d} thresholds={thresholds} />
+                  <DriveCard key={d.id} drive={d} thresholds={thresholds} lastScan={lastScanFor(d.id, d.letters[0])} />
                 ))}
               </div>
             )}

@@ -55,7 +55,11 @@ export function EventsProvider({ children, url = "/api/v1/events" }: { children:
           else next[job.id] = job;
           return next;
         });
-        if (event.type === "job.finished") void qc.invalidateQueries({ queryKey: keys.jobs });
+        if (event.type === "job.finished") {
+          void qc.invalidateQueries({ queryKey: keys.jobs });
+          if (job.kind === "scan") void qc.invalidateQueries({ queryKey: keys.snapshots });
+        }
+        if (event.type === "job.started" && job.kind === "scan") void qc.invalidateQueries({ queryKey: keys.snapshots });
       }
       listeners.current.forEach((fn) => fn(event));
     };

@@ -3,7 +3,11 @@ import { useParams } from "react-router";
 import { HardDrive } from "lucide-react";
 import { PageHeader } from "@/app/PageHeader";
 import { ApiError } from "@/api/client";
-import { useDrive, useDrives, useSettings } from "@/api/queries";
+import { useDrive, useDrives, useSettings, useSnapshots } from "@/api/queries";
+import { DriveContents } from "@/components/scans/DriveContents";
+import { ScanActivity } from "@/components/scans/ScanActivity";
+import { useScanDialog } from "@/components/scans/ScanDialog";
+import { SnapshotHistory } from "@/components/scans/SnapshotHistory";
 import type { HealthField } from "@/api/types/HealthField";
 import type { HealthSource } from "@/api/types/HealthSource";
 import type { PhysicalDisk } from "@/api/types/PhysicalDisk";
@@ -111,7 +115,12 @@ export function DriveDetailPage() {
   const drive = useDrive(id);
   const all = useDrives();
   const settings = useSettings();
+  const snapshots = useSnapshots(id);
+  const scanDialog = useScanDialog();
   const d = drive.data;
+  const root = d?.letters[0] ? `${d.letters[0]}:\\` : d?.mount_paths[0];
+  const latestComplete = snapshots.data?.find((s) => s.status === "complete" && s.root === root);
+  const scanning = Boolean(snapshots.data?.some((s) => s.status === "running"));
 
   if (drive.isError) {
     const notFound = drive.error instanceof ApiError && drive.error.status === 404;
@@ -155,12 +164,17 @@ export function DriveDetailPage() {
           </>
         )}
       </section>
+      <ScanActivity />
+      {d && (
+        <DriveContents snapshot={latestComplete} scanning={scanning} onScan={() => root && scanDialog.open([root])} />
+      )}
       {d && d.physical_disks.length === 0 && (
         <Card>
           <EmptyState icon={<HardDrive />} title="Physical disk unknown" description="Windows did not report which disk this volume is on." />
         </Card>
       )}
       {d?.physical_disks.map((p) => <DiskCard key={p.number} disk={p} trim={all.data?.trim} />)}
+      {d && <SnapshotHistory snapshots={snapshots.data} loading={snapshots.isPending} />}
     </>
   );
 }

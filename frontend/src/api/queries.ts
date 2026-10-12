@@ -3,7 +3,13 @@ import { api } from "./client";
 import type { Drive } from "./types/Drive";
 import type { DrivesResponse } from "./types/DrivesResponse";
 import type { Health } from "./types/Health";
+import type { CategoryTotal } from "./types/CategoryTotal";
+import type { EntryView } from "./types/EntryView";
 import type { JobCreated } from "./types/JobCreated";
+import type { Measure } from "./types/Measure";
+import type { ScanStarted } from "./types/ScanStarted";
+import type { Snapshot } from "./types/Snapshot";
+import type { SnapshotData } from "./types/SnapshotData";
 import type { JobStatus } from "./types/JobStatus";
 import type { Settings } from "./types/Settings";
 import type { SystemInfo } from "./types/SystemInfo";
@@ -23,6 +29,10 @@ export const keys = {
   jobs: ["jobs"] as const,
   drives: ["drives"] as const,
   drive: (id: string) => ["drives", id] as const,
+  snapshots: ["snapshots"] as const,
+  snapshotList: (volumeId?: string) => ["snapshots", "list", volumeId ?? "all"] as const,
+  latest: ["snapshots", "latest"] as const,
+  top: (id: number, kind: string, measure: Measure, under?: string) => ["snapshots", id, kind, measure, under ?? ""] as const,
 };
 
 export function useHealth() {
@@ -73,4 +83,86 @@ export function useDrive(id: string) {
 
 export function useRefreshDrives() {
   return useMutation({ mutationFn: () => api<JobCreated>("/drives/refresh", { method: "POST" }) });
+}
+export function useSnapshots(volumeId?: string) {
+  const q = volumeId ? `?volume_id=${encodeURIComponent(volumeId)}&limit=50` : "?limit=50";
+  return useQuery({
+    queryKey: keys.snapshotList(volumeId),
+    queryFn: ({ signal }) => api<Snapshot[]>(`/snapshots${q}`, { signal }),
+  });
+}
+
+export function useLatestSnapshots() {
+  return useQuery({ queryKey: keys.latest, queryFn: ({ signal }) => api<Snapshot[]>("/snapshots/latest", { signal }) });
+}
+
+function underParam(under?: string) {
+  return under ? `&under=${encodeURIComponent(under)}` : "";
+}
+
+export function useTopFiles(id: number | undefined, measure: Measure, limit = 20, under?: string) {
+  return useQuery({
+    queryKey: keys.top(id ?? -1, `files-${limit}`, measure, under),
+    queryFn: ({ signal }) =>
+      api<SnapshotData<EntryView[]>>(`/snapshots/${id}/top-files?measure=${measure}&limit=${limit}${underParam(under)}`, { signal }),
+    enabled: id !== undefined,
+    staleTime: Infinity,
+  });
+}
+
+export function useTopDirs(id: number | undefined, measure: Measure, limit = 20, under?: string, maxDepth?: number) {
+  const depth = maxDepth ? `&max_depth=${maxDepth}` : "";
+  return useQuery({
+    queryKey: keys.top(id ?? -1, `dirs-${limit}-${maxDepth ?? 0}`, measure, under),
+    queryFn: ({ signal }) =>
+      api<SnapshotData<EntryView[]>>(
+        `/snapshots/${id}/top-dirs?measure=${measure}&limit=${limit}${depth}${underParam(under)}`,
+        { signal },
+      ),
+    enabled: id !== undefined,
+    staleTime: Infinity,
+  });
+}
+
+export function useCategories(id: number | undefined, under?: string) {
+  return useQuery({
+    queryKey: keys.top(id ?? -1, "categories", "alloc", under),
+    queryFn: ({ signal }) =>
+      api<SnapshotData<CategoryTotal[]>>(`/snapshots/${id}/categories?x=1${underParam(under)}`, { signal }),
+    enabled: id !== undefined,
+    staleTime: Infinity,
+  });
+}
+
+function useInvalidateSnapshots() {
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries({ queryKey: keys.snapshots });
+}
+
+export function useStartScan() {
+  const invalidate = useInvalidateSnapshots();
+  return useMutation({
+    mutationFn: (roots: string[]) => api<ScanStarted>("/scans", { method: "POST", body: { roots } }),
+    onSuccess: () => void invalidate(),
+  });
+}
+
+export function useResumeScan() {
+  const invalidate = useInvalidateSnapshots();
+  return useMutation({
+    mutationFn: (snapshotId: number) => api<JobCreated>(`/snapshots/${snapshotId}/resume`, { method: "POST" }),
+    onSuccess: () => void invalidate(),
+  });
+}
+
+export function useDeleteSnapshot() {
+  const invalidate = useInvalidateSnapshots();
+  return useMutation({
+    mutationFn: (snapshotId: number) => api<unknown>(`/snapshots/${snapshotId}`, { method: "DELETE" }),
+    onSuccess: () => void invalidate(),
+  });
+}
+
+export function useCancelJob() {
+  return useMutation({ mutationFn: (jobId: number) => api<JobStatus>(`/jobs/${jobId}/cancel`, { method: "POST" }) });
 }

@@ -1,6 +1,7 @@
 import { HardDrive, RotateCw } from "lucide-react";
 import { PageHeader } from "@/app/PageHeader";
-import { useDrives, useRefreshDrives, useSettings } from "@/api/queries";
+import { useDrives, useLatestSnapshots, useRefreshDrives, useSettings } from "@/api/queries";
+import { ScanActivity } from "@/components/scans/ScanActivity";
 import { DriveCard, DriveCardSkeleton } from "@/components/drives/DriveCard";
 import { excludedNote } from "@/components/drives/excluded";
 import { RelativeTime } from "@/components/SizeDisplay";
@@ -12,6 +13,7 @@ export function DrivesPage() {
   const drives = useDrives();
   const settings = useSettings();
   const refresh = useRefreshDrives();
+  const latest = useLatestSnapshots();
   const thresholds = {
     percent: settings.data?.low_space_percent ?? 10,
     floorGib: settings.data?.low_space_floor_gib ?? 20,
@@ -38,6 +40,7 @@ export function DrivesPage() {
           </Button>
         }
       />
+      <ScanActivity />
       {drives.isError ? (
         <Card>
           <ErrorState title="Cannot read your drives" error={drives.error} onRetry={() => drives.refetch()} />
@@ -55,7 +58,12 @@ export function DrivesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {data.drives.map((d) => (
-            <DriveCard key={d.id} drive={d} thresholds={thresholds} />
+            <DriveCard
+              key={d.id}
+              drive={d}
+              thresholds={thresholds}
+              lastScan={latest.data?.find((s) => s.volume_id === d.id && s.root === `${d.letters[0]}:\\`)?.finished_at}
+            />
           ))}
         </div>
       )}

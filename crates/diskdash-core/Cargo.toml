@@ -7,6 +7,15 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+crossbeam-channel.workspace = true
+rusqlite.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+windows.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+test-fixtures.workspace = true
 
 [lints]
 workspace = true

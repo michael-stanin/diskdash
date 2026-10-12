@@ -70,6 +70,14 @@ fn fixture(dev: bool) -> Fixture {
     let events = Arc::new(EventBus::new());
     let jobs = JobRunner::start(db.clone(), events.clone(), 2).unwrap();
     let inventory = Arc::new(InventoryService::new(Box::new(RecordedSource), db.clone(), events.clone()));
+    inventory.refresh().unwrap();
+    let scans = Arc::new(diskdash::scans::ScanService {
+        db: db.clone(),
+        own: own.clone(),
+        inventory: inventory.clone(),
+        jobs: jobs.clone(),
+        elevated: false,
+    });
     let mut files = HashMap::new();
     files.insert(
         "index.html".to_string(),
@@ -82,6 +90,8 @@ fn fixture(dev: bool) -> Fixture {
         jobs,
         events: events.clone(),
         inventory,
+        scans,
+        own,
         assets: Arc::new(MemoryAssets(files)),
         elevation: Arc::new(NotElevated),
         data_dir: dd.root().to_path_buf(),
@@ -348,3 +358,5 @@ async fn drives_refresh_is_a_job() {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
+
+include!("include/scan_api.rs");

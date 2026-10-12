@@ -4,7 +4,7 @@ import type { Drive } from "@/api/types/Drive";
 import type { HealthStatus } from "@/api/types/HealthStatus";
 import { MediaBadge } from "@/components/Badges";
 import { FILL_TEXT, FillBar, fillState } from "@/components/FillBar";
-import { SizeDisplay } from "@/components/SizeDisplay";
+import { RelativeTime, SizeDisplay } from "@/components/SizeDisplay";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -55,9 +55,11 @@ export function lowSpaceText(d: Drive, percent: number, floorGib: number): strin
 interface DriveCardProps {
   drive: Drive;
   thresholds: { percent: number; floorGib: number };
+  /** Finish time of the latest complete whole-drive scan. */
+  lastScan?: string | null;
 }
 
-export function DriveCard({ drive: d, thresholds }: DriveCardProps) {
+export function DriveCard({ drive: d, thresholds, lastScan }: DriveCardProps) {
   const state = fillState(d.used_fraction, d.low_space);
   const free = formatBytesParts(d.free);
   const model = d.physical_disks.map((p) => p.model).join(" + ") || "Physical disk unknown";
@@ -92,7 +94,14 @@ export function DriveCard({ drive: d, thresholds }: DriveCardProps) {
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground">
         <HealthPill status={d.health} reasons={d.physical_disks.flatMap((p) => p.health.reasons)} />
         <span>{d.filesystem || "—"}</span>
-        {low ? <span className="font-medium text-fill-warning-text">{low}</span> : <span>Not scanned yet</span>}
+        {low && <span className="font-medium text-fill-warning-text">{low}</span>}
+        {lastScan ? (
+          <span>
+            Scanned <RelativeTime date={lastScan} />
+          </span>
+        ) : (
+          !low && <span>Not scanned yet</span>
+        )}
         <Link
           to={`/drives/${d.id}`}
           className="ml-auto inline-flex items-center gap-0.5 rounded text-[13px] font-medium text-primary no-underline hover:text-primary-hover"
