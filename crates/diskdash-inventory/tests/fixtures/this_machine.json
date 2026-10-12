@@ -1,0 +1,247 @@
+{
+  "volumes": [
+    {
+      "Path": "\\\\?\\Volume{0e737198-dd40-48a3-a45c-6cabe2847161}\\",
+      "DriveLetter": null,
+      "FileSystemLabel": "",
+      "FileSystem": "NTFS",
+      "DriveType": 3,
+      "Size": 540012544,
+      "SizeRemaining": 73805824,
+      "AllocationUnitSize": 4096,
+      "HealthStatus": 0
+    },
+    {
+      "Path": "\\\\?\\Volume{629458e4-0000-0000-0000-010000000000}\\",
+      "DriveLetter": null,
+      "FileSystemLabel": "PortableBaseLayer",
+      "FileSystem": "NTFS",
+      "DriveType": 3,
+      "Size": 8586784768,
+      "SizeRemaining": 8040501248,
+      "AllocationUnitSize": 4096,
+      "HealthStatus": 0
+    },
+    {
+      "Path": "\\\\?\\Volume{76d1b1cb-d808-49ed-8e2a-8753489b3dbb}\\",
+      "DriveLetter": null,
+      "FileSystemLabel": "Recovery",
+      "FileSystem": "NTFS",
+      "DriveType": 3,
+      "Size": 471855104,
+      "SizeRemaining": 455716864,
+      "AllocationUnitSize": 4096,
+      "HealthStatus": 0
+    },
+    {
+      "Path": "\\\\?\\Volume{8f042e29-e5a4-11ed-ba81-966f5006b564}\\",
+      "DriveLetter": "G",
+      "FileSystemLabel": "",
+      "FileSystem": "NTFS",
+      "DriveType": 3,
+      "Size": 250055684096,
+      "SizeRemaining": 239460265984,
+      "AllocationUnitSize": 4096,
+      "HealthStatus": 0
+    },
+    {
+      "Path": "\\\\?\\Volume{8f3bed5a-2851-45b5-aa21-90a47523de8e}\\",
+      "DriveLetter": "C",
+      "FileSystemLabel": "",
+      "FileSystem": "NTFS",
+      "DriveType": 3,
+      "Size": 510855340032,
+      "SizeRemaining": 113039908864,
+      "AllocationUnitSize": 4096,
+      "HealthStatus": 0
+    },
+    {
+      "Path": "\\\\?\\Volume{baff6440-013a-11ea-80b3-806e6f6e6963}\\",
+      "DriveLetter": "E",
+      "FileSystemLabel": "",
+      "FileSystem": "",
+      "DriveType": 5,
+      "Size": 0,
+      "SizeRemaining": 0,
+      "AllocationUnitSize": 0,
+      "HealthStatus": 0
+    },
+    {
+      "Path": "\\\\?\\Volume{ea541d5d-0000-0000-0000-100000000000}\\",
+      "DriveLetter": "D",
+      "FileSystemLabel": "",
+      "FileSystem": "NTFS",
+      "DriveType": 3,
+      "Size": 1000202039296,
+      "SizeRemaining": 42944978944,
+      "AllocationUnitSize": 4096,
+      "HealthStatus": 0
+    }
+  ],
+  "partitions": [
+    {
+      "DiskNumber": 2,
+      "DriveLetter": null,
+      "AccessPaths": [
+        null
+      ],
+      "IsSystem": false,
+      "IsBoot": false
+    },
+    {
+      "DiskNumber": 2,
+      "DriveLetter": null,
+      "AccessPaths": [
+        "\\\\?\\Volume{76d1b1cb-d808-49ed-8e2a-8753489b3dbb}\\"
+      ],
+      "IsSystem": false,
+      "IsBoot": false
+    },
+    {
+      "DiskNumber": 2,
+      "DriveLetter": null,
+      "AccessPaths": [
+        "\\\\?\\Volume{100461ca-8fbf-4518-b050-05acf4004e29}\\"
+      ],
+      "IsSystem": true,
+      "IsBoot": false
+    },
+    {
+      "DiskNumber": 2,
+      "DriveLetter": "C",
+      "AccessPaths": [
+        "C:\\",
+        "\\\\?\\Volume{8f3bed5a-2851-45b5-aa21-90a47523de8e}\\"
+      ],
+      "IsSystem": false,
+      "IsBoot": true
+    },
+    {
+      "DiskNumber": 2,
+      "DriveLetter": null,
+      "AccessPaths": [
+        "\\\\?\\Volume{0e737198-dd40-48a3-a45c-6cabe2847161}\\"
+      ],
+      "IsSystem": false,
+      "IsBoot": false
+    },
+    {
+      "DiskNumber": 1,
+      "DriveLetter": "G",
+      "AccessPaths": [
+        "G:\\",
+        "\\\\?\\Volume{8f042e29-e5a4-11ed-ba81-966f5006b564}\\"
+      ],
+      "IsSystem": false,
+      "IsBoot": false
+    },
+    {
+      "DiskNumber": 0,
+      "DriveLetter": "D",
+      "AccessPaths": [
+        "D:\\",
+        "\\\\?\\Volume{ea541d5d-0000-0000-0000-100000000000}\\"
+      ],
+      "IsSystem": false,
+      "IsBoot": false
+    }
+  ],
+  "physical": [
+    {
+      "DeviceId": "3",
+      "FriendlyName": "Msft Virtual Disk",
+      "SerialNumber": null,
+      "MediaType": 4,
+      "BusType": 15,
+      "SpindleSpeed": 0,
+      "Size": 8589934592,
+      "HealthStatus": 0,
+      "OperationalStatus": [
+        2
+      ]
+    },
+    {
+      "DeviceId": "2",
+      "FriendlyName": "Lexar 512GB SSD",
+      "SerialNumber": "0000_0000_0000_0000_AAAA_BBBB_0000_0001.",
+      "MediaType": 4,
+      "BusType": 17,
+      "SpindleSpeed": 0,
+      "Size": 512110190592,
+      "HealthStatus": 0,
+      "OperationalStatus": [
+        2
+      ]
+    },
+    {
+      "DeviceId": "0",
+      "FriendlyName": "WDC WD10EZEX-60M2NA0",
+      "SerialNumber": "WD-TESTSERIAL01",
+      "MediaType": 3,
+      "BusType": 11,
+      "SpindleSpeed": 4294967295,
+      "Size": 1000204886016,
+      "HealthStatus": 0,
+      "OperationalStatus": [
+        2
+      ]
+    },
+    {
+      "DeviceId": "1",
+      "FriendlyName": "Samsung SSD 850 EVO 250GB",
+      "SerialNumber": "S000TESTSERIAL2",
+      "MediaType": 4,
+      "BusType": 11,
+      "SpindleSpeed": 0,
+      "Size": 250059350016,
+      "HealthStatus": 0,
+      "OperationalStatus": [
+        2
+      ]
+    }
+  ],
+  "disks": [
+    {
+      "Number": 2,
+      "BusType": 17,
+      "IsBoot": true,
+      "IsSystem": true,
+      "SerialNumber": "0000_0000_0000_0000_AAAA_BBBB_0000_0001.",
+      "FriendlyName": "Lexar 512GB SSD"
+    },
+    {
+      "Number": 1,
+      "BusType": 11,
+      "IsBoot": false,
+      "IsSystem": false,
+      "SerialNumber": "S000TESTSERIAL2",
+      "FriendlyName": "Samsung SSD 850 EVO 250GB"
+    },
+    {
+      "Number": 0,
+      "BusType": 11,
+      "IsBoot": false,
+      "IsSystem": false,
+      "SerialNumber": "     WD-TESTSERIAL01",
+      "FriendlyName": "WDC WD10EZEX-60M2NA0"
+    }
+  ],
+  "logical": [
+    {
+      "DeviceID": "C:",
+      "DriveType": 3
+    },
+    {
+      "DeviceID": "D:",
+      "DriveType": 3
+    },
+    {
+      "DeviceID": "E:",
+      "DriveType": 5
+    },
+    {
+      "DeviceID": "G:",
+      "DriveType": 3
+    }
+  ]
+}

@@ -16,6 +16,7 @@ use ts_rs::TS;
 use crate::assets::{self, AssetSource};
 use crate::error::ApiError;
 use crate::events::{self, EventBus};
+use crate::inventory::{DrivesResponse, InventoryService, RefreshJob};
 use crate::jobs::builtin::NoopSleep;
 use crate::jobs::runner::RunnerError;
 use crate::jobs::{JobRunner, JobStatus};
@@ -30,6 +31,7 @@ pub struct AppState {
     pub db: Db,
     pub jobs: JobRunner,
     pub events: Arc<EventBus>,
+    pub inventory: Arc<InventoryService>,
     pub assets: Arc<dyn AssetSource>,
     pub elevation: Arc<dyn ElevationDetector>,
     pub data_dir: PathBuf,
@@ -47,7 +49,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/jobs", jobs_route)
         .route("/jobs/{id}", get(get_job))
         .route("/jobs/{id}/cancel", post(cancel_job))
-        .route("/events", get(event_stream));
+        .route("/events", get(event_stream))
+        .route("/drives", get(list_drives))
+        .route("/drives/refresh", post(refresh_drives))
+        .route("/drives/{id}", get(get_drive));
     if state.dev {
         api = api.route("/session", get(dev_session));
     }
@@ -161,6 +166,47 @@ async fn submit_dev_job(
     };
     let jobs = st.jobs.clone();
     blocking(move || Ok(Json(JobCreated { id: jobs.submit(Box::new(job))? }))).await
+}
+
+async fn load_settings(db: &Db) -> Result<Settings, ApiError> {
+    let db = db.clone();
+    blocking(move || {
+        let conn = db.connect_read_only().map_err(ApiError::internal)?;
+        settings::load(&conn).map_err(ApiError::internal)
+    })
+    .await
+}
+
+/// Drive list with low-space flags from the current settings. The very first
+/// call after install waits for the initial collection (about a second).
+async fn list_drives(State(st): State<AppState>) -> Result<Json<DrivesResponse>, ApiError> {
+    if !st.inventory.has_data() {
+        let svc = st.inventory.clone();
+        let _ = tokio::task::spawn_blocking(move || svc.refresh()).await;
+    }
+    let settings = load_settings(&st.db).await?;
+    Ok(Json(st.inventory.snapshot(&settings)))
+}
+
+async fn get_drive(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<diskdash_inventory::model::Drive>, ApiError> {
+    let settings = load_settings(&st.db).await?;
+    let id = id.to_ascii_lowercase();
+    st.inventory
+        .snapshot(&settings)
+        .drives
+        .into_iter()
+        .find(|d| d.id == id)
+        .map(Json)
+        .ok_or_else(|| ApiError::NotFound(format!("no drive with id {id}")))
+}
+
+async fn refresh_drives(State(st): State<AppState>) -> Result<Json<JobCreated>, ApiError> {
+    let jobs = st.jobs.clone();
+    let svc = st.inventory.clone();
+    blocking(move || Ok(Json(JobCreated { id: jobs.submit(Box::new(RefreshJob(svc)))? }))).await
 }
 
 async fn event_stream(State(st): State<AppState>, headers: HeaderMap) -> Response {

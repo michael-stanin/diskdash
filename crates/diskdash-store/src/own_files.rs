@@ -15,23 +15,49 @@ use crate::DataDir;
 pub enum OwnFilesError {
     #[error("refusing to write outside the diskdash data directory: {0}")]
     OutsideDataDir(PathBuf),
+    #[error("refusing to write through a link or junction inside the data directory: {0}")]
+    ThroughLink(PathBuf),
     #[error("path must not contain `..`, prefixes or be relative: {0}")]
     InvalidPath(PathBuf),
     #[error(transparent)]
     Io(#[from] io::Error),
 }
 
+const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+
 /// Write access to the app's own data directory, and nothing else.
+///
+/// Paths are compared lexically (case-insensitive) rather than by resolving
+/// them: packaged-app filesystem virtualisation can make the same folder
+/// resolve to different physical locations. Junctions and symlinks below the
+/// data directory are refused instead, which is what resolving guarded against.
 #[derive(Debug, Clone)]
 pub struct OwnFiles {
     root: PathBuf,
+}
+
+/// Path segments without any `\\?\` verbatim prefix (original case).
+fn segments(p: &Path) -> Vec<String> {
+    let s = p.as_os_str().to_string_lossy();
+    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
+    s.split(['\\', '/']).filter(|c| !c.is_empty()).map(str::to_string).collect()
+}
+
+fn same_segments(a: &[String], b: &[String]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(x, y)| x.eq_ignore_ascii_case(y) || x.to_lowercase() == y.to_lowercase())
+}
+
+fn is_link(p: &Path) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    std::fs::symlink_metadata(p).is_ok_and(|m| m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
 }
 
 impl OwnFiles {
     /// Create the data directory if needed and take ownership of it.
     pub fn new(data_dir: &DataDir) -> Result<Self, OwnFilesError> {
         std::fs::create_dir_all(data_dir.root())?;
-        let root = data_dir.root().canonicalize()?;
+        let root = std::path::absolute(data_dir.root())?;
         Ok(Self { root })
     }
 
@@ -39,11 +65,11 @@ impl OwnFiles {
         &self.root
     }
 
-    /// Resolve `path` and check it lies strictly inside the data directory.
-    /// Relative paths are taken relative to the data directory.
+    /// Check `path` lies strictly inside the data directory, with no link or
+    /// junction on the way. Relative paths are taken relative to the data dir.
     pub fn check(&self, path: &Path) -> Result<PathBuf, OwnFilesError> {
-        // Check raw segments: under a `\\?\` root, `Path::components` treats
-        // `..` as an ordinary name, so it would not be caught after joining.
+        // Raw segments: under a `\\?\` prefix, `Path::components` treats `..`
+        // as an ordinary name.
         let raw = path.as_os_str().to_string_lossy();
         if raw.split(['\\', '/']).any(|seg| seg == ".." || seg == ".")
             || path.components().any(|c| matches!(c, Component::ParentDir | Component::CurDir))
@@ -51,27 +77,20 @@ impl OwnFiles {
             return Err(OwnFilesError::InvalidPath(path.to_path_buf()));
         }
         let joined = if path.is_absolute() { path.to_path_buf() } else { self.root.join(path) };
-        // Canonicalise the deepest existing ancestor, so junctions inside the
-        // data dir cannot redirect writes elsewhere.
-        let mut existing = joined.as_path();
-        let mut rest = Vec::new();
-        while !existing.exists() {
-            match (existing.parent(), existing.file_name()) {
-                (Some(parent), Some(name)) => {
-                    rest.push(name.to_os_string());
-                    existing = parent;
-                }
-                _ => return Err(OwnFilesError::InvalidPath(path.to_path_buf())),
-            }
-        }
-        let mut resolved = existing.canonicalize()?;
-        for part in rest.into_iter().rev() {
-            resolved.push(part);
-        }
-        if resolved == self.root || !resolved.starts_with(&self.root) {
+        let (root_seg, seg) = (segments(&self.root), segments(&joined));
+        if seg.len() <= root_seg.len() || !same_segments(&seg[..root_seg.len()], &root_seg) {
             return Err(OwnFilesError::OutsideDataDir(path.to_path_buf()));
         }
-        Ok(resolved)
+        // Every existing component below the root (and the target) must be a
+        // plain directory/file, never a junction or symlink pointing elsewhere.
+        let mut cur = self.root.clone();
+        for part in &seg[root_seg.len()..] {
+            cur.push(part);
+            if is_link(&cur) {
+                return Err(OwnFilesError::ThroughLink(cur));
+            }
+        }
+        Ok(cur)
     }
 
     /// Create a directory (and parents) inside the data dir.
@@ -138,6 +157,18 @@ mod tests {
     }
 
     #[test]
+    fn reopens_existing_file_by_absolute_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dd = DataDir::at(tmp.path().join("data"));
+        let own = OwnFiles::new(&dd).unwrap();
+        let log = dd.logs_dir().join("diskdash.log");
+        drop(own.open_append(&log).unwrap());
+        // Second start: the file now exists.
+        let own2 = OwnFiles::new(&dd).unwrap();
+        own2.open_append(&log).expect("existing file inside the data dir must be accepted");
+    }
+
+    #[test]
     fn refuses_paths_outside_data_dir() {
         let (tmp, own) = setup();
         let outside = tmp.path().join("victim.txt");
@@ -151,6 +182,42 @@ mod tests {
         let (_tmp, own) = setup();
         assert!(matches!(own.open_append(Path::new(r"..\escape.txt")), Err(OwnFilesError::InvalidPath(_))));
         assert!(matches!(own.check(Path::new(r"logs\..\..\x")), Err(OwnFilesError::InvalidPath(_))));
+    }
+
+    #[test]
+    fn refuses_writes_through_a_junction() {
+        let (tmp, own) = setup();
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        let link = own.root().join("sneaky");
+        let ok = std::process::Command::new("cmd")
+            .args(["/c", "mklink", "/J"])
+            .arg(&link)
+            .arg(&outside)
+            .output()
+            .unwrap()
+            .status
+            .success();
+        assert!(ok, "mklink /J works without admin");
+        let err = own.open_append(&link.join("x.log")).unwrap_err();
+        assert!(matches!(err, OwnFilesError::ThroughLink(_)), "{err}");
+        assert!(!outside.join("x.log").exists());
+    }
+
+    #[test]
+    fn accepts_case_and_prefix_variants_of_the_root() {
+        let (_tmp, own) = setup();
+        let upper = std::path::PathBuf::from(own.root().to_string_lossy().to_uppercase()).join("a.txt");
+        assert!(own.check(&upper).is_ok());
+        let verbatim = std::path::PathBuf::from(format!(r"\\?\{}", own.root().display())).join("b.txt");
+        assert!(own.check(&verbatim).is_ok());
+    }
+
+    #[test]
+    fn refuses_sibling_with_common_prefix() {
+        let (_tmp, own) = setup();
+        let sibling = std::path::PathBuf::from(format!("{}-evil", own.root().display())).join("x");
+        assert!(matches!(own.check(&sibling), Err(OwnFilesError::OutsideDataDir(_))));
     }
 
     #[test]

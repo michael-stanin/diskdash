@@ -11,9 +11,11 @@ use axum::Router;
 use diskdash::app::{build_router, AppState};
 use diskdash::assets::MemoryAssets;
 use diskdash::events::EventBus;
+use diskdash::inventory::{InventoryService, InventorySource};
 use diskdash::jobs::JobRunner;
 use diskdash::security::Security;
 use diskdash::system::ElevationDetector;
+use diskdash_inventory::model::{HealthSources, Inventory, TrimState};
 use diskdash_store::{open_catalog, DataDir, OwnFiles};
 use http_body_util::BodyExt;
 use tower::ServiceExt;
@@ -26,6 +28,31 @@ struct NotElevated;
 impl ElevationDetector for NotElevated {
     fn is_elevated(&self) -> bool {
         false
+    }
+}
+
+/// This machine's recorded inventory (C: NVMe, D: HDD, G: SATA SSD, E: optical).
+struct RecordedSource;
+impl InventorySource for RecordedSource {
+    fn collect(&self) -> Inventory {
+        let raw = diskdash_inventory::raw::RawInventory::from_json(include_str!(
+            "../../diskdash-inventory/tests/fixtures/this_machine.json"
+        ))
+        .unwrap();
+        let inputs = diskdash_inventory::assemble::HealthInputs {
+            elevated: false,
+            reliability: &[],
+            smart: &[],
+            windows_letter: Some("C".into()),
+        };
+        let (drives, excluded) = diskdash_inventory::assemble::assemble(&raw, &inputs);
+        Inventory {
+            drives,
+            excluded,
+            trim: TrimState { ntfs: Some(true), refs: Some(true), reason: None },
+            sources: HealthSources { elevated: false, smartctl: None },
+            fallback: false,
+        }
     }
 }
 
@@ -42,6 +69,7 @@ fn fixture(dev: bool) -> Fixture {
     let db = open_catalog(&dd, &own).unwrap();
     let events = Arc::new(EventBus::new());
     let jobs = JobRunner::start(db.clone(), events.clone(), 2).unwrap();
+    let inventory = Arc::new(InventoryService::new(Box::new(RecordedSource), db.clone(), events.clone()));
     let mut files = HashMap::new();
     files.insert(
         "index.html".to_string(),
@@ -53,6 +81,7 @@ fn fixture(dev: bool) -> Fixture {
         db,
         jobs,
         events: events.clone(),
+        inventory,
         assets: Arc::new(MemoryAssets(files)),
         elevation: Arc::new(NotElevated),
         data_dir: dd.root().to_path_buf(),
@@ -270,4 +299,52 @@ async fn event_stream_replays_after_last_event_id() {
     }
     assert!(!text.contains("id: 1\n"), "event 1 was already seen");
     assert!(text.find("id: 2").unwrap() < text.find("id: 3").unwrap());
+}
+
+#[tokio::test]
+async fn drives_endpoint_lists_in_scope_drives_with_low_space() {
+    let f = fixture(false);
+    let (status, body, _) = send(&f.router, req(Method::GET, "/api/v1/drives").body(Body::empty()).unwrap()).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let letters: Vec<String> =
+        v["drives"].as_array().unwrap().iter().map(|d| d["letters"][0].as_str().unwrap().to_string()).collect();
+    assert_eq!(letters, ["C", "D", "G"]);
+    assert_eq!(v["excluded"]["optical"], 1);
+    let d = &v["drives"][1];
+    assert_eq!(d["media"], "HDD");
+    assert_eq!(d["low_space"], true);
+    assert_eq!(d["low_space_reason"], "percent");
+    assert!(v["refreshed_at"].is_string());
+
+    let id = v["drives"][0]["id"].as_str().unwrap().to_string();
+    let (status, body, _) =
+        send(&f.router, req(Method::GET, &format!("/api/v1/drives/{id}")).body(Body::empty()).unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains("Lexar 512GB SSD"));
+
+    let (status, _, _) =
+        send(&f.router, req(Method::GET, "/api/v1/drives/not-a-volume").body(Body::empty()).unwrap()).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn drives_refresh_is_a_job() {
+    let f = fixture(false);
+    let r = req(Method::POST, "/api/v1/drives/refresh").header("x-diskdash-token", TOKEN).body(Body::empty()).unwrap();
+    let (status, body, _) = send(&f.router, r).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let id = serde_json::from_str::<serde_json::Value>(&body).unwrap()["id"].as_u64().unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let (_, body, _) =
+            send(&f.router, req(Method::GET, &format!("/api/v1/jobs/{id}")).body(Body::empty()).unwrap()).await;
+        let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+        if v["status"] == "succeeded" {
+            assert_eq!(v["kind"], "inventory-refresh");
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "{v}");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
 }

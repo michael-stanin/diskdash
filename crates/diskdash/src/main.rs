@@ -8,9 +8,10 @@ use diskdash::app::{build_router, AppState};
 use diskdash::assets::EmbeddedAssets;
 use diskdash::config::Config;
 use diskdash::events::EventBus;
+use diskdash::inventory::{spawn_auto_refresh, InventoryService, SystemSource};
 use diskdash::jobs::JobRunner;
 use diskdash::security::Security;
-use diskdash::system::WindowsElevation;
+use diskdash::system::{ElevationDetector, WindowsElevation};
 use diskdash_store::{open_catalog, DataDir, OwnFiles};
 
 #[tokio::main]
@@ -31,11 +32,17 @@ async fn main() -> anyhow::Result<()> {
         Err(msg) => bail!(msg),
     };
 
+    let elevated = WindowsElevation.is_elevated();
+    let inventory =
+        Arc::new(InventoryService::new(Box::new(SystemSource::detect(elevated)), db.clone(), events.clone()));
+    spawn_auto_refresh(inventory.clone(), events.clone());
+
     let state = AppState {
         security: Arc::new(Security::new(config.port)),
         db,
         jobs: jobs.clone(),
         events,
+        inventory,
         assets: Arc::new(EmbeddedAssets),
         elevation: Arc::new(WindowsElevation),
         data_dir: data_dir.root().to_path_buf(),

@@ -1,6 +1,7 @@
+import type { MediaClass } from "@/api/types/MediaClass";
 import { cn } from "@/lib/cn";
 
-export type MediaClass = "NVME_SSD" | "SATA_SSD" | "HDD" | "UNKNOWN";
+export type { MediaClass };
 export type Risk = "safe" | "review" | "expert";
 
 const MEDIA: Record<MediaClass, { label: string; className: string; title: string }> = {

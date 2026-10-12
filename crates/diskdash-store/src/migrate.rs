@@ -11,8 +11,10 @@ pub struct Migration {
 }
 
 /// All migrations shipped with this build, in order.
-pub const MIGRATIONS: &[Migration] =
-    &[Migration { version: 1, name: "base", sql: include_str!("../migrations/0001_base.sql") }];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration { version: 1, name: "base", sql: include_str!("../migrations/0001_base.sql") },
+    Migration { version: 2, name: "inventory", sql: include_str!("../migrations/0002_inventory.sql") },
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum MigrationError {

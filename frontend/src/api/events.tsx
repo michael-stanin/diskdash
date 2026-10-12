@@ -6,7 +6,7 @@ import { keys, useHealth } from "./queries";
 
 export type ConnectionState = "connecting" | "connected" | "disconnected";
 
-const EVENT_TYPES = ["job.queued", "job.started", "job.progress", "job.finished"] as const;
+const EVENT_TYPES = ["job.queued", "job.started", "job.progress", "job.finished", "inventory.updated"] as const;
 type Listener = (e: ServerEvent) => void;
 
 interface EventsContextValue {
@@ -46,6 +46,7 @@ export function EventsProvider({ children, url = "/api/v1/events" }: { children:
       } catch {
         return;
       }
+      if (event.type === "inventory.updated") void qc.invalidateQueries({ queryKey: keys.drives });
       const job = event.data as JobStatus;
       if (event.type.startsWith("job.") && job && typeof job.id === "number") {
         setActiveJobs((prev) => {

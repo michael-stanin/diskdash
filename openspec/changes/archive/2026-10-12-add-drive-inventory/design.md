@@ -25,7 +25,7 @@ In a non-admin session, `Get-PhysicalDisk` and `Get-Partition` work, `Get-Storag
 ## Decisions
 
 ### D1. PowerShell + CIM via subprocess, JSON output
-A single `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command <script>` call runs a fixed script embedded in the binary (not built from user input). The script gathers `Get-Volume`, `Get-Partition`, `Get-PhysicalDisk`, `Get-Disk` and `Win32_LogicalDisk` (only to count excluded network/optical letters, never querying a share) and emits one JSON document. The reliability-counter query runs in a separate call with its own timeout, so a slow or failing counter query can't block the basic inventory.
+A single `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command <script>` call runs a fixed script embedded in the binary (not built from user input). The script gathers `Get-Volume`, `Get-Partition`, `Get-PhysicalDisk`, and `Get-Disk` (as raw `MSFT_*` CIM classes, so enum values are numeric and locale-independent) and emits one JSON document. Network and optical letters are counted natively with `GetDriveTypeW`, which reads only local mapping state. The reliability-counter query runs in a separate call with its own timeout, so a slow or failing counter query can't block the basic inventory.
 - *Alternative: WMI/CIM directly from Rust (`wmi` crate over COM).* It avoids ~0.5–1 s of PowerShell startup, but the MSFT_* storage classes are awkward through COM (method calls, embedded instances). PowerShell startup cost is fine at a 60 s refresh rate. If profiling shows a problem, the volume/disk queries can move to the `wmi` crate later without changing the API.
 - *Alternative: raw `DeviceIoControl` (IOCTL_STORAGE_QUERY_PROPERTY) via the `windows` crate.* It is the fastest and needs no admin for the seek-penalty and bus type. We keep it as a fallback for classification if PowerShell is unavailable (restricted environments), but it is not the primary path.
 
@@ -49,7 +49,7 @@ smartctl and the reliability counters need admin. The web server never elevates 
 Inventory is cheap (~1–2 s), so it refreshes every 60 s while the UI has an SSE subscriber, and on demand otherwise. Free-space samples are coalesced into 15-minute buckets, which gives about 35k rows per volume per year — negligible.
 
 ### D7. Network drives
-These are only counted, from `Win32_LogicalDisk` DriveType 4, which reads local mapping state. The share is never queried. This keeps safety rule 2: SMB traffic counts as network traffic.
+These are only counted, via `GetDriveTypeW` (DRIVE_REMOTE), which reads local mapping state. WMI (`Win32_LogicalDisk`) is deliberately not used, because its provider may query the share. The share is never queried. This keeps safety rule 2: SMB traffic counts as network traffic.
 
 ### D8. Low-space rule: percentage OR floor
 The owner chose "flag below 10% **or** below 20 GiB". The reason (`percent` / `floor`) is returned, so the user can tune whichever condition is noisy. On the 931 GiB HDD the percentage condition dominates at 93 GiB. If that turns out to be too strict, the percentage can be lowered in Settings.

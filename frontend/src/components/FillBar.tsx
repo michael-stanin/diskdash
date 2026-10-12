@@ -16,9 +16,9 @@ const BAR: Record<FillState, string> = {
 };
 
 export const FILL_TEXT: Record<FillState, string> = {
-  normal: "text-fill-normal",
-  caution: "text-fill-caution",
-  warning: "text-fill-warning",
+  normal: "text-fill-normal-text",
+  caution: "text-fill-caution-text",
+  warning: "text-fill-warning-text",
 };
 
 interface FillBarProps {

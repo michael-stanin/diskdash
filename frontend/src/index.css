@@ -41,6 +41,9 @@
   --color-fill-caution: var(--fill-caution);
   --color-fill-warning: var(--fill-warning);
   --color-fill-track: var(--fill-track);
+  --color-fill-normal-text: var(--fill-normal-text);
+  --color-fill-caution-text: var(--fill-caution-text);
+  --color-fill-warning-text: var(--fill-warning-text);
 
   --color-risk-safe-bg: var(--risk-safe-bg);
   --color-risk-safe-fg: var(--risk-safe-fg);

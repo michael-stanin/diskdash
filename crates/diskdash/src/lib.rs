@@ -8,6 +8,7 @@ pub mod assets;
 pub mod config;
 pub mod error;
 pub mod events;
+pub mod inventory;
 pub mod jobs;
 pub mod logging;
 pub mod security;

@@ -42,6 +42,10 @@
   --fill-caution: #c58400;
   --fill-warning: #d4572f;
   --fill-track: #e6e9ed;
+  /* Text in fill colours must meet 4.5:1, bars only 3:1. */
+  --fill-normal-text: #0b7a70;
+  --fill-caution-text: #8a5c00;
+  --fill-warning-text: #b23c14;
 
   /* Risk badges */
   --risk-safe-bg: #e2f4ea;
@@ -110,6 +114,9 @@
   --fill-caution: #e8b04b;
   --fill-warning: #f08a70;
   --fill-track: #1e2229;
+  --fill-normal-text: #7dd3c8;
+  --fill-caution-text: #e8b04b;
+  --fill-warning-text: #f08a70;
 
   --risk-safe-bg: #16291f;
   --risk-safe-fg: #7fd6a3;

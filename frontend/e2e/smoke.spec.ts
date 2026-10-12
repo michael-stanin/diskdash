@@ -62,6 +62,22 @@ test("keyboard reaches the sidebar first with a visible focus ring", async ({ pa
   expect(outline).not.toBe("none");
 });
 
+test("home shows this machine's drives and the detail page opens", async ({ page }, info) => {
+  const errors = collectErrors(page);
+  await page.goto("/");
+  const cards = page.getByRole("link", { name: /^Details for / });
+  await expect(cards.first()).toBeVisible({ timeout: 20_000 });
+  await expectNoContrastIssues(page);
+  await page.screenshot({ path: info.outputPath(`home-${info.project.name}.png`), fullPage: true });
+
+  await cards.first().click();
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toBeVisible();
+  await expect(page.getByText("Overall health")).toBeVisible();
+  await expectNoContrastIssues(page);
+  await page.screenshot({ path: info.outputPath(`drive-${info.project.name}.png`), fullPage: true });
+  expect(errors).toEqual([]);
+});
+
 test("settings validation shows field errors", async ({ page }) => {
   await page.goto("/settings");
   const stale = page.getByLabel("Stale after");

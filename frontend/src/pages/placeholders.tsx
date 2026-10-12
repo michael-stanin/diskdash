@@ -1,24 +1,9 @@
-import { CheckSquare, HardDrive, Sparkles } from "lucide-react";
+import { CheckSquare, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 import { PageHeader } from "@/app/PageHeader";
 import { EmptyState } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-
-export function DrivesPage() {
-  return (
-    <>
-      <PageHeader title="Drives" subtitle="Every fixed internal drive, with its hardware and health." />
-      <Card>
-        <EmptyState
-          icon={<HardDrive />}
-          title="Drive detection is not set up yet"
-          description="diskdash will list your internal HDDs and SSDs here, with capacity, free space and health. This arrives with the drive inventory."
-        />
-      </Card>
-    </>
-  );
-}
 
 export function RecommendationsPage() {
   return (
