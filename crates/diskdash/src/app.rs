@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::assets::{self, AssetSource};
+use crate::cleanup::{
+    CandidatePage, CandidateQuery, CleanupOverview, CleanupService, EvaluateRequest, RulesView, SnapshotCleanup,
+};
 use crate::error::ApiError;
 use crate::events::{self, EventBus};
 use crate::inventory::{DrivesResponse, InventoryService, RefreshJob};
@@ -39,6 +42,7 @@ pub struct AppState {
     pub events: Arc<EventBus>,
     pub inventory: Arc<InventoryService>,
     pub scans: Arc<ScanService>,
+    pub cleanup: Arc<CleanupService>,
     pub own: OwnFiles,
     pub launcher: Arc<dyn Launcher>,
     pub assets: Arc<dyn AssetSource>,
@@ -67,6 +71,11 @@ pub fn build_router(state: AppState) -> Router {
         .route("/snapshots/latest", get(latest_snapshots))
         .route("/snapshots/{id}", get(get_snapshot).delete(delete_snapshot))
         .route("/snapshots/{id}/resume", post(resume_snapshot))
+        .route("/snapshots/{id}/cleanup", get(snapshot_cleanup))
+        .route("/cleanup/overview", get(cleanup_overview))
+        .route("/cleanup/candidates", get(cleanup_candidates))
+        .route("/cleanup/evaluate", post(cleanup_evaluate))
+        .route("/rules", get(list_rules))
         .route("/snapshots/{id}/children", get(snapshot_children))
         .route("/snapshots/{id}/tree", get(snapshot_tree))
         .route("/shell/reveal", post(reveal))
@@ -241,6 +250,39 @@ async fn resume_snapshot(State(st): State<AppState>, Path(id): Path<i64>) -> Res
     let settings = load_settings(&st.db).await?;
     let scans = st.scans.clone();
     blocking(move || Ok(Json(JobCreated { id: scans.resume(id, &settings)? }))).await
+}
+
+async fn snapshot_cleanup(State(st): State<AppState>, Path(id): Path<i64>) -> Result<Json<SnapshotCleanup>, ApiError> {
+    let svc = st.cleanup.clone();
+    blocking(move || svc.snapshot_cleanup(id).map(Json)).await
+}
+
+async fn cleanup_overview(State(st): State<AppState>) -> Result<Json<CleanupOverview>, ApiError> {
+    let svc = st.cleanup.clone();
+    blocking(move || svc.overview().map(Json)).await
+}
+
+async fn cleanup_candidates(
+    State(st): State<AppState>,
+    Query(q): Query<CandidateQuery>,
+) -> Result<Json<CandidatePage>, ApiError> {
+    let svc = st.cleanup.clone();
+    blocking(move || svc.candidates(&q).map(Json)).await
+}
+
+/// Run the rules again (after editing rule files, or when an earlier run failed).
+async fn cleanup_evaluate(
+    State(st): State<AppState>,
+    body: Option<Json<EvaluateRequest>>,
+) -> Result<Json<JobCreated>, ApiError> {
+    let ids = body.map(|Json(b)| b.snapshot_ids).unwrap_or_default();
+    let svc = st.cleanup.clone();
+    blocking(move || Ok(Json(JobCreated { id: svc.rerun(&ids)? }))).await
+}
+
+async fn list_rules(State(st): State<AppState>) -> Result<Json<RulesView>, ApiError> {
+    let svc = st.cleanup.clone();
+    blocking(move || Ok(Json(svc.rules_view()))).await
 }
 
 async fn list_snapshots(

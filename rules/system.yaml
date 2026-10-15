@@ -1,0 +1,96 @@
+# Built-in rules: large Windows system files. Space here is controlled by Windows settings,
+# so these rules only explain what to change. diskdash never runs these commands.
+
+rules:
+  - id: system-hiberfil
+    category: system
+    title: Hibernation file (hiberfil.sys)
+    explanation: >-
+      Windows saves memory here for hibernation and Fast Startup. It is typically 40-75% of your RAM.
+      A reduced file keeps Fast Startup and is smaller; turning hibernation off removes it.
+    risk: Review
+    kind: system-setting
+    paths: ["%SystemDrive%\\hiberfil.sys"]
+    instructions:
+      - "In an administrator Command Prompt, make the file smaller (keeps Fast Startup, drops full hibernation):"
+      - "powercfg /h /type reduced"
+      - "Or turn hibernation off completely (also turns off Fast Startup):"
+      - "powercfg /h off"
+      - "To undo: powercfg /h on"
+
+  - id: system-pagefile
+    category: system
+    title: Paging file (pagefile.sys)
+    explanation: >-
+      Virtual memory Windows uses when RAM is full. Shrinking or moving it to another drive frees space,
+      but a too-small file can cause crashes and low-memory warnings.
+    risk: Expert
+    kind: system-setting
+    paths: ["%SystemDrive%\\pagefile.sys"]
+    instructions:
+      - "Open System Properties: press Win+R, type sysdm.cpl, Advanced > Performance Settings > Advanced > Virtual memory > Change."
+      - "Untick \"Automatically manage\", then set a custom size or move it to another drive. Restart for it to take effect."
+
+  - id: system-swapfile
+    category: system
+    title: App swap file (swapfile.sys)
+    explanation: A small file Windows uses to park suspended apps. Usually only a few hundred MB.
+    risk: Expert
+    kind: system-setting
+    paths: ["%SystemDrive%\\swapfile.sys"]
+    instructions:
+      - "It is controlled together with the paging file; see the pagefile.sys suggestion. Not worth changing on its own."
+
+  - id: system-shadow-copies
+    category: system
+    title: System Restore and shadow copies
+    explanation: >-
+      Restore points and volume snapshots reserve space on the system drive. Measuring this needs
+      administrator rights, so diskdash cannot show the size without them.
+    risk: Review
+    kind: system-setting
+    virtual_source: shadow-storage
+    instructions:
+      - "See how much space is reserved (administrator Command Prompt):"
+      - "vssadmin list shadowstorage"
+      - "Shrink the limit:"
+      - "vssadmin resize shadowstorage /for=C: /on=C: /maxsize=10GB"
+      - "Or use the settings page: press Win+R, type sysdm.cpl, System Protection > Configure."
+
+  - id: system-winsxs
+    category: system
+    title: Component store (WinSxS)
+    explanation: >-
+      Windows keeps old versions of system components here. The size shown overstates the real use because
+      many files are shared with Windows itself. Never delete this folder by hand.
+    risk: Expert
+    kind: system-setting
+    paths: ["%WINDIR%\\WinSxS"]
+    instructions:
+      - "Find out how much can be reclaimed (administrator Command Prompt; diskdash does not run this):"
+      - "DISM /Online /Cleanup-Image /AnalyzeComponentStore"
+      - "If it recommends cleanup:"
+      - "DISM /Online /Cleanup-Image /StartComponentCleanup"
+
+  - id: system-vhdx
+    category: system
+    title: Virtual disk files (.vhdx)
+    explanation: >-
+      WSL, Docker and Hyper-V keep their data in virtual disks that grow but do not shrink by themselves.
+      Compacting one can return a lot of space without deleting anything inside it.
+    risk: Review
+    kind: system-setting
+    globs: ["*.vhdx"]
+    applies_to: file
+    conditions:
+      min_size: 1 GiB
+    instructions:
+      - "Shut down what uses the disk first (for WSL: wsl --shutdown; for Docker Desktop: quit it)."
+      - "Hyper-V (administrator PowerShell):"
+      - "Optimize-VHD -Path \"<path of the .vhdx>\" -Mode Full"
+      - "Without Hyper-V (administrator Command Prompt):"
+      - "diskpart"
+      - "select vdisk file=\"<path of the .vhdx>\""
+      - "attach vdisk readonly"
+      - "compact vdisk"
+      - "detach vdisk"

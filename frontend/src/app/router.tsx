@@ -4,7 +4,9 @@ import { ComponentGallery } from "@/pages/ComponentGallery";
 import { HomePage } from "@/pages/HomePage";
 import { DriveDetailPage } from "@/pages/DriveDetailPage";
 import { DrivesPage } from "@/pages/DrivesPage";
-import { NotFoundPage, PlansPage, RecommendationsPage } from "@/pages/placeholders";
+import { NotFoundPage, PlansPage } from "@/pages/placeholders";
+import { RecommendationsPage } from "@/pages/RecommendationsPage";
+import { RulesPage } from "@/pages/RulesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { SnapshotPage } from "@/pages/SnapshotPage";
 
@@ -17,6 +19,7 @@ export const routes = [
       { path: "/drives/:id", element: <DriveDetailPage /> },
       { path: "/snapshots/:id", element: <SnapshotPage /> },
       { path: "/recommendations", element: <RecommendationsPage /> },
+      { path: "/rules", element: <RulesPage /> },
       { path: "/plans", element: <PlansPage /> },
       { path: "/settings", element: <SettingsPage /> },
       // Not linked from the UI; used by the Playwright visual smoke test.

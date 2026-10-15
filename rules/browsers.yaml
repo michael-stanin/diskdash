@@ -1,0 +1,54 @@
+# Built-in rules: browser caches. Browsers refill them as you browse (pages load a little slower at first).
+
+rules:
+  - id: browser-chrome-cache
+    category: browser
+    title: Google Chrome cache
+    explanation: Saved copies of web pages and scripts. Chrome downloads them again when needed.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%LOCALAPPDATA%\\Google\\Chrome\\User Data"]
+    globs: ["*/Cache", "*/Code Cache", "*/GPUCache", "ShaderCache", "GrShaderCache"]
+    applies_to: dir
+    instructions:
+      - "In Chrome: Settings > Privacy and security > Delete browsing data > Advanced, tick only \"Cached images and files\", choose All time."
+      - "Or close Chrome and delete the folders shown in Explorer."
+
+  - id: browser-edge-cache
+    category: browser
+    title: Microsoft Edge cache
+    explanation: Saved copies of web pages and scripts. Edge downloads them again when needed.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%LOCALAPPDATA%\\Microsoft\\Edge\\User Data"]
+    globs: ["*/Cache", "*/Code Cache", "*/GPUCache", "ShaderCache", "GrShaderCache"]
+    applies_to: dir
+    instructions:
+      - "In Edge: Settings > Privacy, search, and services > Choose what to clear, tick only \"Cached images and files\"."
+      - "Or close Edge and delete the folders shown in Explorer."
+
+  - id: browser-brave-cache
+    category: browser
+    title: Brave cache
+    explanation: Saved copies of web pages and scripts. Brave downloads them again when needed.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data"]
+    globs: ["*/Cache", "*/Code Cache", "*/GPUCache", "ShaderCache", "GrShaderCache"]
+    applies_to: dir
+    instructions:
+      - "In Brave: Settings > Privacy and security > Delete browsing data, tick only \"Cached images and files\"."
+      - "Or close Brave and delete the folders shown in Explorer."
+
+  - id: browser-firefox-cache
+    category: browser
+    title: Firefox cache
+    explanation: Saved copies of web pages. Firefox downloads them again when needed.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles"]
+    globs: ["*/cache2", "*/startupCache"]
+    applies_to: dir
+    instructions:
+      - "In Firefox: Settings > Privacy & Security > Cookies and Site Data > Clear Data, tick only \"Cached Web Content\"."
+      - "Or close Firefox and delete the folders shown in Explorer."

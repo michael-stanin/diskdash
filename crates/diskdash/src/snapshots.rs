@@ -184,6 +184,16 @@ pub fn delete(conn: &Connection, own: &OwnFiles, snap: &Snapshot) -> Result<(), 
     if snap.status == SnapshotStatus::Running {
         return Err(ApiError::Conflict("this scan is still running; cancel it first".into()));
     }
+    let busy: bool = conn
+        .query_row(
+            "SELECT EXISTS (SELECT 1 FROM cleanup_runs WHERE snapshot_id = ?1 AND status IN ('queued', 'running'))",
+            [snap.id],
+            |r| r.get(0),
+        )
+        .unwrap_or(false);
+    if busy {
+        return Err(ApiError::Conflict("this scan is still being checked for cleanup suggestions; try again in a moment".into()));
+    }
     conn.execute("DELETE FROM snapshots WHERE id = ?1", [snap.id]).map_err(ApiError::internal)?;
     let base = own.root().join(&snap.db_file);
     for suffix in ["", "-wal", "-shm"] {
@@ -263,7 +273,7 @@ pub struct EntryView {
     pub link_target: Option<String>,
 }
 
-fn rfc3339(secs: Option<i64>) -> Option<String> {
+pub(crate) fn rfc3339(secs: Option<i64>) -> Option<String> {
     let s = secs.filter(|s| *s > 0)?;
     Some(humantime::format_rfc3339_seconds(UNIX_EPOCH + Duration::from_secs(s as u64)).to_string())
 }

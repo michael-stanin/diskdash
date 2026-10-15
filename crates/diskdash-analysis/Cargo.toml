@@ -1,0 +1,25 @@
+[package]
+name = "diskdash-analysis"
+description = "Cleanup rules: YAML rule model, loader and evaluator over scan snapshots (read-only)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+globset.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+ts-rs.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+diskdash-core.workspace = true
+test-fixtures.workspace = true
+
+[lints]
+workspace = true

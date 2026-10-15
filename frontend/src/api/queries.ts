@@ -16,6 +16,12 @@ import type { SnapshotData } from "./types/SnapshotData";
 import type { JobStatus } from "./types/JobStatus";
 import type { Settings } from "./types/Settings";
 import type { SystemInfo } from "./types/SystemInfo";
+import type { CandidatePage } from "./types/CandidatePage";
+import type { CleanupOverview } from "./types/CleanupOverview";
+import type { Risk } from "./types/Risk";
+import type { RuleKind } from "./types/RuleKind";
+import type { RulesView } from "./types/RulesView";
+import type { SnapshotCleanup } from "./types/SnapshotCleanup";
 
 export function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -248,5 +254,101 @@ export function useReveal() {
   return useMutation({
     mutationFn: (v: { snapshotId: number; entryId: number }) =>
       api<void>("/shell/reveal", { method: "POST", body: { snapshot_id: v.snapshotId, entry_id: v.entryId } }),
+  });
+}
+// ---------------------------------------------------------------------------
+// Cleanup suggestions and rules
+// ---------------------------------------------------------------------------
+
+export const cleanupKeys = {
+  all: ["cleanup"] as const,
+  overview: ["cleanup", "overview"] as const,
+  snapshot: (id: number) => ["cleanup", "snapshot", id] as const,
+  rules: ["cleanup", "rules"] as const,
+};
+
+export function useCleanupOverview() {
+  return useQuery({
+    queryKey: cleanupKeys.overview,
+    queryFn: ({ signal }) => api<CleanupOverview>("/cleanup/overview", { signal }),
+    staleTime: 10_000,
+  });
+}
+
+export function useSnapshotCleanup(id: number | undefined) {
+  return useQuery({
+    queryKey: cleanupKeys.snapshot(id ?? -1),
+    queryFn: ({ signal }) => api<SnapshotCleanup>(`/snapshots/${id}/cleanup`, { signal }),
+    enabled: id !== undefined,
+    staleTime: 10_000,
+  });
+}
+
+export interface CandidateFilter {
+  /** One scan; omitted = the latest scan of every drive. */
+  snapshotId?: number;
+  /** Drive id (volume) when no snapshot is given. */
+  drive?: string;
+  risk?: Risk | null;
+  category?: string | null;
+  kind?: RuleKind | null;
+  q?: string;
+}
+
+export const CANDIDATE_PAGE = 20;
+
+function candidateQuery(f: CandidateFilter, extra: Record<string, string | number | undefined> = {}): string {
+  const p = new URLSearchParams();
+  const set = (k: string, v: string | number | null | undefined) => {
+    if (v !== undefined && v !== null && v !== "") p.set(k, String(v));
+  };
+  set("snapshot_id", f.snapshotId);
+  set("drive", f.drive);
+  set("risk", f.risk);
+  set("category", f.category);
+  set("kind", f.kind);
+  set("q", f.q?.trim());
+  for (const [k, v] of Object.entries(extra)) set(k, v);
+  return p.toString();
+}
+
+/** Ranked cleanup candidates, 20 per page ("Show more"). */
+export function useCandidates(filter: CandidateFilter) {
+  return useInfiniteQuery({
+    queryKey: ["cleanup", "candidates", filter] as const,
+    queryFn: ({ pageParam, signal }) =>
+      api<CandidatePage>(`/cleanup/candidates?${candidateQuery(filter, { limit: CANDIDATE_PAGE, cursor: pageParam })}`, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
+    staleTime: 10_000,
+  });
+}
+
+/** Smaller matches listed under one candidate. */
+export function useNestedCandidates(snapshotId: number, parent: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["cleanup", "nested", snapshotId, parent] as const,
+    queryFn: ({ signal }) =>
+      api<CandidatePage>(`/cleanup/candidates?snapshot_id=${snapshotId}&parent=${parent}&limit=50`, { signal }),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useRules() {
+  return useQuery({
+    queryKey: cleanupKeys.rules,
+    queryFn: ({ signal }) => api<RulesView>("/rules", { signal }),
+    staleTime: 5_000,
+  });
+}
+
+/** Run the rules again (after editing rule files, or after a failed run). */
+export function useRerunRules() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (snapshotIds: number[] = []) =>
+      api<JobCreated>("/cleanup/evaluate", { method: "POST", body: { snapshot_ids: snapshotIds } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: cleanupKeys.all }),
   });
 }

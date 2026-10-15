@@ -14,6 +14,7 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::cleanup::CleanupService;
 use crate::error::ApiError;
 use crate::inventory::InventoryService;
 use crate::jobs::{Job, JobContext, JobError, JobRunner};
@@ -67,6 +68,8 @@ pub struct ScanService {
     pub inventory: Arc<InventoryService>,
     pub jobs: JobRunner,
     pub elevated: bool,
+    /// Evaluates the cleanup rules on every scan that completes.
+    pub cleanup: Option<Arc<CleanupService>>,
 }
 
 fn drive_for<'a>(drives: &'a [Drive], root: &str) -> Option<&'a Drive> {
@@ -261,6 +264,8 @@ impl ScanService {
             db: self.db.clone(),
             exclude: vec![paths::from_extended(&self.own.root().to_string_lossy())],
             windows_dir: std::env::var("SystemRoot").ok(),
+            cleanup: self.cleanup.clone(),
+            completed: Mutex::new(Vec::new()),
         };
         let job_id = self.jobs.submit(Box::new(job)).map_err(ApiError::from)?;
         for id in ids {
@@ -278,6 +283,9 @@ pub struct ScanJob {
     pub db: Db,
     pub exclude: Vec<String>,
     pub windows_dir: Option<String>,
+    pub cleanup: Option<Arc<CleanupService>>,
+    /// Snapshots that finished completely during this job.
+    pub completed: Mutex<Vec<i64>>,
 }
 
 #[derive(Default)]
@@ -294,6 +302,11 @@ impl ScanJob {
         let now = now_rfc3339();
         let res = match result {
             Ok(s) => {
+                if s.status == ScanStatus::Complete {
+                    if let Ok(mut done) = self.completed.lock() {
+                        done.push(item.snapshot_id);
+                    }
+                }
                 let status = match s.status {
                     ScanStatus::Complete => "complete",
                     ScanStatus::Partial => "partial",
@@ -427,6 +440,16 @@ impl Job for ScanJob {
                 std::thread::sleep(Duration::from_millis(250));
             }
         });
+
+        // Suggestions for every scan that finished, even when another root failed or was cancelled.
+        if let Some(cleanup) = &self.cleanup {
+            let ids = self.completed.lock().map(|d| d.clone()).unwrap_or_default();
+            if !ids.is_empty() {
+                if let Err(e) = cleanup.submit(&ids) {
+                    tracing::warn!(error = %e, "cannot queue cleanup evaluation");
+                }
+            }
+        }
 
         if ctx.is_cancelled() {
             return Err(JobError::Cancelled);

@@ -1,0 +1,81 @@
+# Built-in rules: caches of everyday applications.
+
+rules:
+  - id: apps-steam-shader-cache
+    category: apps
+    title: Steam shader cache
+    explanation: Precompiled graphics shaders. Steam and your games rebuild them, so first launches may stutter briefly.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%ProgramFiles(x86)%\\Steam\\steamapps\\shadercache", "%ProgramFiles%\\Steam\\steamapps\\shadercache"]
+    instructions:
+      - "Close Steam and delete the folder in Explorer, or use Steam > Settings > Downloads > Clear Shader Cache."
+
+  - id: apps-steam-downloading
+    category: apps
+    title: Steam unfinished downloads
+    explanation: Partly downloaded game updates. Deleting them cancels those downloads; Steam starts them again.
+    risk: Review
+    kind: manual-cleanup
+    paths: ["%ProgramFiles(x86)%\\Steam\\steamapps\\downloading", "%ProgramFiles%\\Steam\\steamapps\\downloading"]
+    instructions:
+      - "In Steam, cancel or finish the pending downloads first. Then close Steam and delete the folder contents in Explorer."
+
+  - id: apps-teams-cache
+    category: apps
+    title: Microsoft Teams cache
+    explanation: Temporary data Teams keeps locally. It is recreated at the next start.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%APPDATA%\\Microsoft\\Teams"]
+    globs: ["Cache", "blob_storage", "GPUCache", "Code Cache", "tmp"]
+    applies_to: dir
+    instructions:
+      - "Quit Teams completely (right-click its tray icon > Quit), then delete the folders in Explorer."
+
+  - id: apps-slack-cache
+    category: apps
+    title: Slack cache
+    explanation: Temporary data Slack keeps locally. It is recreated at the next start.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%APPDATA%\\Slack"]
+    globs: ["Cache", "Code Cache", "GPUCache", "Service Worker/CacheStorage"]
+    applies_to: dir
+    instructions:
+      - "Quit Slack completely, then delete the folders in Explorer."
+
+  - id: apps-discord-cache
+    category: apps
+    title: Discord cache
+    explanation: Temporary data Discord keeps locally. It is recreated at the next start.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%APPDATA%\\discord"]
+    globs: ["Cache", "Code Cache", "GPUCache"]
+    applies_to: dir
+    instructions:
+      - "Quit Discord completely, then delete the folders in Explorer."
+
+  - id: apps-spotify-cache
+    category: apps
+    title: Spotify cache
+    explanation: Songs Spotify saved for faster playback. They are downloaded again when played.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%LOCALAPPDATA%\\Spotify\\Storage", "%LOCALAPPDATA%\\Spotify\\Data"]
+    instructions:
+      - "In Spotify: Settings > Storage > Clear cache. Downloaded (offline) songs are kept separately."
+
+  - id: apps-adobe-media-cache
+    category: apps
+    title: Adobe media cache
+    explanation: Preview and audio files that Premiere Pro, After Effects and others generate. They are rebuilt on demand.
+    risk: Safe
+    kind: manual-cleanup
+    paths:
+      - "%APPDATA%\\Adobe\\Common\\Media Cache Files"
+      - "%APPDATA%\\Adobe\\Common\\Media Cache"
+      - "%APPDATA%\\Adobe\\Common\\Peak Files"
+    instructions:
+      - "In Premiere Pro: Preferences > Media Cache > Delete (choose \"Delete unused media cache files\" first)."

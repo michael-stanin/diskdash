@@ -39,12 +39,24 @@ async fn main() -> anyhow::Result<()> {
     if let Err(e) = diskdash::snapshots::reconcile(&db, &own, &data_dir.snapshots_dir()) {
         tracing::warn!(error = %e, "snapshot reconciliation failed");
     }
+    if let Err(e) = diskdash::cleanup::CleanupService::reconcile(&db) {
+        tracing::warn!(error = %e, "cleanup reconciliation failed");
+    }
+    let cleanup = Arc::new(diskdash::cleanup::CleanupService {
+        db: db.clone(),
+        own: own.clone(),
+        jobs: jobs.clone(),
+        rules_dir: data_dir.root().join("rules"),
+        env: Arc::new(diskdash::cleanup_sys::SystemEnv),
+        probe: Arc::new(diskdash::cleanup_sys::WindowsProbe),
+    });
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
         inventory: inventory.clone(),
         jobs: jobs.clone(),
         elevated,
+        cleanup: Some(cleanup.clone()),
     });
 
     let state = AppState {
@@ -54,6 +66,7 @@ async fn main() -> anyhow::Result<()> {
         events,
         inventory,
         scans,
+        cleanup,
         own,
         launcher: Arc::new(diskdash::shell::ExplorerLauncher),
         assets: Arc::new(EmbeddedAssets),

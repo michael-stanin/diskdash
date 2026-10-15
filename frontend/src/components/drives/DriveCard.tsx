@@ -2,7 +2,9 @@ import { Link } from "react-router";
 import { ChevronRight } from "lucide-react";
 import type { Drive } from "@/api/types/Drive";
 import type { HealthStatus } from "@/api/types/HealthStatus";
+import type { SnapshotCleanup } from "@/api/types/SnapshotCleanup";
 import { MediaBadge } from "@/components/Badges";
+import { DriveSavings } from "@/components/cleanup/Savings";
 import { FILL_TEXT, FillBar, fillState } from "@/components/FillBar";
 import { RelativeTime, SizeDisplay } from "@/components/SizeDisplay";
 import { Card } from "@/components/ui/card";
@@ -64,9 +66,11 @@ interface DriveCardProps {
   lastScan?: string | null;
   /** Health from basic Windows status only (not elevated). */
   limitedHealth?: boolean;
+  /** Cleanup suggestions from the latest whole-drive scan. */
+  savings?: SnapshotCleanup;
 }
 
-export function DriveCard({ drive: d, thresholds, lastScan, limitedHealth }: DriveCardProps) {
+export function DriveCard({ drive: d, thresholds, lastScan, limitedHealth, savings }: DriveCardProps) {
   const state = fillState(d.used_fraction, d.low_space);
   const free = formatBytesParts(d.free);
   const model = d.physical_disks.map((p) => p.model).join(" + ") || "Physical disk unknown";
@@ -97,6 +101,8 @@ export function DriveCard({ drive: d, thresholds, lastScan, limitedHealth }: Dri
       </div>
 
       <FillBar usedFraction={d.used_fraction} state={state} label={`${driveName(d)} ${formatPercent(d.used_fraction)} used`} />
+
+      <DriveSavings cleanup={savings} />
 
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground">
         <HealthPill status={d.health} reasons={d.physical_disks.flatMap((p) => p.health.reasons)} limited={limitedHealth} />

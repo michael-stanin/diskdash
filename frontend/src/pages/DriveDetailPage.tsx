@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { SnapshotSummary } from "@/components/usage/SnapshotSummary";
 import { LazyUsageExplorer } from "@/components/usage/LazyUsageExplorer";
+import { CleanupTab } from "@/components/cleanup/CleanupTab";
 import { ScanActivity } from "@/components/scans/ScanActivity";
 import { useScanDialog } from "@/components/scans/ScanDialog";
 import { SnapshotHistory } from "@/components/scans/SnapshotHistory";
@@ -124,7 +125,7 @@ export function DriveDetailPage() {
   const root = d?.letters[0] ? `${d.letters[0]}:\\` : d?.mount_paths[0];
   const latestComplete = snapshots.data?.find((s) => s.status === "complete" && s.root === root);
   const scanning = Boolean(snapshots.data?.some((s) => s.status === "running"));
-  const [tab, setTab] = useState<"usage" | "hardware" | "history">("usage");
+  const [tab, setTab] = useState<"usage" | "cleanup" | "hardware" | "history">("usage");
   const scan = () => root && scanDialog.open([root]);
 
   if (drive.isError) {
@@ -177,6 +178,7 @@ export function DriveDetailPage() {
           onChange={setTab}
           tabs={[
             { key: "usage", label: "Usage" },
+            { key: "cleanup", label: "Cleanup" },
             { key: "hardware", label: "Hardware & health" },
             { key: "history", label: "Scan history" },
           ]}
@@ -195,6 +197,27 @@ export function DriveDetailPage() {
                   icon={<ScanSearch />}
                   title={scanning ? "Scanning…" : "Not scanned yet"}
                   description="A scan lists every folder and file on this drive (read-only) so diskdash can show where the space goes."
+                  action={
+                    !scanning && (
+                      <Button variant="primary" onClick={scan}>
+                        <ScanSearch /> Scan now
+                      </Button>
+                    )
+                  }
+                />
+              </Card>
+            ))}
+          {tab === "cleanup" &&
+            (snapshots.isPending ? (
+              <Skeleton className="h-[440px] w-full rounded-card" />
+            ) : latestComplete ? (
+              <CleanupTab snapshot={latestComplete} />
+            ) : (
+              <Card>
+                <EmptyState
+                  icon={<ScanSearch />}
+                  title="Scan this drive to see suggestions"
+                  description="Cleanup suggestions come from a scan: diskdash checks it against its rules for caches, leftovers and old files."
                   action={
                     !scanning && (
                       <Button variant="primary" onClick={scan}>

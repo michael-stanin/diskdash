@@ -1,0 +1,27 @@
+# Built-in rules: old log and leftover temporary files anywhere on the drive.
+# The age is in the rule (min_age_days). Copy the rule into your own rules folder to change it.
+
+rules:
+  - id: logs-old-logs
+    category: logs
+    title: Old log files
+    explanation: Log and trace files (.log, .etl) that have not changed for 30 days. Programs write new ones when needed.
+    risk: Safe
+    kind: manual-cleanup
+    globs: ["*.log", "*.etl"]
+    applies_to: file
+    min_age_days: 30
+    instructions:
+      - "Delete the files in Explorer. Programs create new log files when they need them."
+
+  - id: logs-old-temp-files
+    category: logs
+    title: Old temporary files
+    explanation: Leftover .tmp files and Office lock files (~$...) that have not changed for 30 days.
+    risk: Safe
+    kind: manual-cleanup
+    globs: ["*.tmp", "~$*"]
+    applies_to: file
+    min_age_days: 30
+    instructions:
+      - "Delete the files in Explorer. Make sure the program that made them is closed."

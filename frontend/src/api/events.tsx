@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { useQueryClient } from "@tanstack/react-query";
 import type { JobStatus } from "./types/JobStatus";
 import type { ServerEvent } from "./types/ServerEvent";
-import { keys, useHealth } from "./queries";
+import { cleanupKeys, keys, useHealth } from "./queries";
 
 export type ConnectionState = "connecting" | "connected" | "disconnected";
 
@@ -58,6 +58,10 @@ export function EventsProvider({ children, url = "/api/v1/events" }: { children:
         if (event.type === "job.finished") {
           void qc.invalidateQueries({ queryKey: keys.jobs });
           if (job.kind === "scan") void qc.invalidateQueries({ queryKey: keys.snapshots });
+          if (job.kind === "scan" || job.kind === "cleanup") void qc.invalidateQueries({ queryKey: cleanupKeys.all });
+        }
+        if (job.kind === "cleanup" && (event.type === "job.queued" || event.type === "job.started")) {
+          void qc.invalidateQueries({ queryKey: cleanupKeys.all });
         }
         if (event.type === "job.started" && job.kind === "scan") void qc.invalidateQueries({ queryKey: keys.snapshots });
       }

@@ -74,6 +74,11 @@ struct Fixture {
 }
 
 fn fixture(dev: bool) -> Fixture {
+    fixture_env(dev, diskdash_analysis::rules::MapEnv::default())
+}
+
+/// `env` is what `%TEMP%`, known folders and so on expand to in cleanup rules.
+fn fixture_env(dev: bool, env: diskdash_analysis::rules::MapEnv) -> Fixture {
     let tmp = tempfile::tempdir().unwrap();
     let dd = DataDir::at(tmp.path().join("dd"));
     let own = OwnFiles::new(&dd).unwrap();
@@ -82,12 +87,21 @@ fn fixture(dev: bool) -> Fixture {
     let jobs = JobRunner::start(db.clone(), events.clone(), 2).unwrap();
     let inventory = Arc::new(InventoryService::new(Box::new(RecordedSource), db.clone(), events.clone()));
     inventory.refresh().unwrap();
+    let cleanup = Arc::new(diskdash::cleanup::CleanupService {
+        db: db.clone(),
+        own: own.clone(),
+        jobs: jobs.clone(),
+        rules_dir: dd.root().join("rules"),
+        env: Arc::new(env),
+        probe: Arc::new(diskdash_analysis::eval::probe::NullProbe),
+    });
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
         inventory: inventory.clone(),
         jobs: jobs.clone(),
         elevated: false,
+        cleanup: Some(cleanup.clone()),
     });
     let mut files = HashMap::new();
     files.insert(
@@ -103,6 +117,7 @@ fn fixture(dev: bool) -> Fixture {
         events: events.clone(),
         inventory,
         scans,
+        cleanup,
         own,
         launcher: launcher.clone(),
         assets: Arc::new(MemoryAssets(files)),
@@ -373,3 +388,4 @@ async fn drives_refresh_is_a_job() {
 }
 
 include!("include/scan_api.rs");
+include!("include/cleanup_api.rs");

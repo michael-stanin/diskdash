@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
+diskdash-analysis.workspace = true
 diskdash-core.workspace = true
 diskdash-inventory.workspace = true
 diskdash-store.workspace = true

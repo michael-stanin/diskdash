@@ -79,6 +79,7 @@ async fn scan_a_folder_end_to_end_then_browse_and_remove() {
 
     let (_, latest) = json(&f.router, get("/api/v1/snapshots/latest")).await;
     assert_eq!(latest[0]["id"], sid);
+    wait_for_cleanup(&f, sid).await;
 
     let removal =
         req(Method::DELETE, &format!("/api/v1/snapshots/{sid}")).header("x-diskdash-token", TOKEN).body(Body::empty()).unwrap();

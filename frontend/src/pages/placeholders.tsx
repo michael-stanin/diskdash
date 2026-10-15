@@ -5,26 +5,6 @@ import { EmptyState } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-export function RecommendationsPage() {
-  return (
-    <>
-      <PageHeader title="Recommendations" subtitle="Ranked by space you could free versus risk." />
-      <Card>
-        <EmptyState
-          icon={<Sparkles />}
-          title="No recommendations yet"
-          description="After a scan, diskdash suggests caches, leftovers and large old files you could remove or move. It never deletes anything itself."
-          action={
-            <Button asChild variant="secondary">
-              <Link to="/">Go to overview</Link>
-            </Button>
-          }
-        />
-      </Card>
-    </>
-  );
-}
-
 export function PlansPage() {
   return (
     <>

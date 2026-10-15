@@ -81,6 +81,13 @@ impl Fixture {
         fs::remove_file(self.path(rel)).expect("remove fixture file");
     }
 
+    /// Set a fixture file's last-modified time to `days` days ago.
+    pub fn age_days(&self, rel: &str, days: u64) {
+        let file = OpenOptions::new().write(true).open(self.path(rel)).expect("open fixture file");
+        let when = SystemTime::now() - std::time::Duration::from_secs(days * 86_400);
+        file.set_modified(when).expect("set modified time");
+    }
+
     /// `count` empty files named f0000… in `rel` (bulk trees for benchmarks).
     pub fn empty_files(&self, rel: &str, count: usize) {
         let dir = self.dir(rel);
@@ -278,6 +285,14 @@ pub fn cluster_size(path: &Path) -> u64 {
 /// `size` rounded up to whole clusters.
 pub fn round_up(size: u64, cluster: u64) -> u64 {
     size.div_ceil(cluster) * cluster
+}
+
+/// Write a small text file (creating parent folders). For tests that need rule or config files.
+pub fn write_text(path: &Path, content: &str) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create parent folder");
+    }
+    fs::write(path, content).expect("write text file");
 }
 
 #[cfg(test)]

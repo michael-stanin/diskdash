@@ -1,0 +1,179 @@
+# Built-in rules: developer build output and package caches. All of it can be rebuilt or
+# downloaded again; the risk level reflects how long that takes.
+
+rules:
+  - id: dev-node-modules
+    category: developer
+    title: node_modules folders
+    explanation: >-
+      Downloaded JavaScript packages. Only listed next to a package.json, so `npm install`
+      (or pnpm/yarn install) brings them back. Needs a network connection and some time.
+    risk: Review
+    kind: manual-cleanup
+    globs: ["node_modules"]
+    applies_to: dir
+    conditions:
+      sibling_exists: package.json
+    instructions:
+      - "Delete the node_modules folder in Explorer. Restore later by running this in the project folder:"
+      - "npm install"
+
+  - id: dev-python-venv
+    category: developer
+    title: Python virtual environments
+    explanation: >-
+      The packages a Python project installed for itself. Only listed when the folder contains
+      pyvenv.cfg. Recreate it from the project's requirements file.
+    risk: Review
+    kind: manual-cleanup
+    globs: [".venv", "venv"]
+    applies_to: dir
+    conditions:
+      child_exists: pyvenv.cfg
+    instructions:
+      - "Delete the folder in Explorer. Recreate it later from the project folder:"
+      - "python -m venv .venv"
+      - ".venv\\Scripts\\pip install -r requirements.txt"
+
+  - id: dev-python-pycache
+    category: developer
+    title: Python bytecode caches (__pycache__)
+    explanation: Compiled Python files that Python recreates automatically the next time code runs.
+    risk: Safe
+    kind: manual-cleanup
+    globs: ["__pycache__"]
+    applies_to: dir
+    instructions:
+      - "Delete the folders in Explorer. Python rebuilds them on the next run."
+
+  - id: dev-rust-target
+    category: developer
+    title: Rust build output (target)
+    explanation: >-
+      Compiled output of a Rust project, listed only next to a Cargo.toml. It is rebuilt by
+      `cargo build`, which can take a while for big projects.
+    risk: Review
+    kind: manual-cleanup
+    globs: ["target"]
+    applies_to: dir
+    conditions:
+      sibling_exists: Cargo.toml
+    instructions:
+      - "Delete the target folder in Explorer, or from the project folder run:"
+      - "cargo clean"
+
+  - id: dev-dotnet-build-output
+    category: developer
+    title: .NET build output (bin and obj)
+    explanation: >-
+      Compiled output of a .NET project, listed only next to a project file. Visual Studio or
+      `dotnet build` recreates it.
+    risk: Review
+    kind: manual-cleanup
+    globs: ["bin", "obj"]
+    applies_to: dir
+    conditions:
+      sibling_exists: ["*.csproj", "*.fsproj", "*.vbproj"]
+    instructions:
+      - "Delete the folders in Explorer, or from the project folder run:"
+      - "dotnet clean"
+
+  - id: dev-gradle-cache
+    category: developer
+    title: Gradle caches
+    explanation: Downloaded libraries and build caches. Gradle downloads them again on the next build.
+    risk: Review
+    kind: manual-cleanup
+    paths: ["%USERPROFILE%\\.gradle\\caches"]
+    instructions:
+      - "Close Android Studio and any Gradle daemons (gradle --stop), then delete the folder in Explorer."
+
+  - id: dev-maven-repository
+    category: developer
+    title: Maven local repository (~/.m2)
+    explanation: Downloaded Java libraries. Maven downloads them again; offline builds will not work until it does.
+    risk: Review
+    kind: manual-cleanup
+    paths: ["%USERPROFILE%\\.m2\\repository"]
+    instructions:
+      - "Delete the folder in Explorer. The next Maven build downloads what it needs."
+
+  - id: dev-js-package-caches
+    category: developer
+    title: npm, pnpm and Yarn caches
+    explanation: Package downloads kept for faster installs. They are downloaded again when needed.
+    risk: Safe
+    kind: manual-cleanup
+    paths:
+      - "%LOCALAPPDATA%\\npm-cache"
+      - "%APPDATA%\\npm-cache"
+      - "%LOCALAPPDATA%\\pnpm\\store"
+      - "%LOCALAPPDATA%\\Yarn\\Cache"
+    instructions:
+      - "npm cache clean --force"
+      - "pnpm store prune"
+      - "yarn cache clean"
+
+  - id: dev-pip-cache
+    category: developer
+    title: pip cache
+    explanation: Python package downloads kept for faster installs.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%LOCALAPPDATA%\\pip\\Cache"]
+    instructions:
+      - "pip cache purge"
+
+  - id: dev-nuget-cache
+    category: developer
+    title: NuGet caches
+    explanation: .NET package downloads. NuGet restores them on the next build.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%USERPROFILE%\\.nuget\\packages", "%LOCALAPPDATA%\\NuGet\\v3-cache"]
+    instructions:
+      - "dotnet nuget locals all --clear"
+
+  - id: dev-cargo-cache
+    category: developer
+    title: Cargo registry and git caches
+    explanation: Downloaded Rust crates and their sources. Cargo downloads them again when a build needs them.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%USERPROFILE%\\.cargo\\registry\\cache", "%USERPROFILE%\\.cargo\\registry\\src", "%USERPROFILE%\\.cargo\\git"]
+    instructions:
+      - "Delete the folders in Explorer, or install cargo-cache and run: cargo cache -a"
+
+  - id: dev-android-system-images
+    category: developer
+    title: Android emulator system images
+    explanation: Large images used by the Android emulator. Remove the ones you no longer test with.
+    risk: Review
+    kind: manual-cleanup
+    paths: ["%LOCALAPPDATA%\\Android\\Sdk\\system-images"]
+    instructions:
+      - "Android Studio > Tools > SDK Manager > SDK Platforms, tick \"Show Package Details\" and untick the images you no longer need."
+
+  - id: dev-visual-studio-cache
+    category: developer
+    title: Visual Studio caches
+    explanation: Component caches that Visual Studio rebuilds at its next start.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%LOCALAPPDATA%\\Microsoft\\VisualStudio"]
+    globs: ["*/ComponentModelCache"]
+    applies_to: dir
+    instructions:
+      - "Close Visual Studio, then delete the folders in Explorer."
+
+  - id: dev-jetbrains-cache
+    category: developer
+    title: JetBrains IDE caches
+    explanation: Indexes and caches of IntelliJ, PyCharm, Rider and other JetBrains IDEs. They are rebuilt on the next start (indexing takes a while).
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%LOCALAPPDATA%\\JetBrains"]
+    globs: ["*/caches", "*/log", "*/tmp"]
+    applies_to: dir
+    instructions:
+      - "In the IDE: File > Invalidate Caches, or close it and delete the folders in Explorer."

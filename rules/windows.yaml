@@ -1,0 +1,151 @@
+# Built-in rules: Windows temporary files, caches and upgrade leftovers.
+# Rules are data. diskdash only shows these suggestions; it never deletes anything.
+# Copy a file to %LOCALAPPDATA%\diskdash\rules\ and edit it to change or disable a rule.
+
+rules:
+  - id: windows-user-temp
+    category: windows
+    title: Your temporary files
+    explanation: >-
+      Scratch files that programs leave in your Temp folder. Programs recreate what they need,
+      and files in use are skipped by Windows.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%TEMP%"]
+    instructions:
+      - "Easiest: Settings > System > Storage > Temporary files, tick \"Temporary files\", then Remove files."
+      - "Or close your programs, open the folder in Explorer (press Win+R and type %TEMP%), select everything and delete it. Skip anything Windows says is in use."
+
+  - id: windows-system-temp
+    category: windows
+    title: Windows temporary files
+    explanation: Scratch files kept by Windows itself and by installers running as the system.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%WINDIR%\\Temp"]
+    instructions:
+      - "Open the folder below in Explorer, select everything and delete it (Windows asks for administrator permission). Skip anything that is in use."
+      - "C:\\Windows\\Temp"
+
+  - id: windows-update-download
+    category: windows
+    title: Downloaded Windows updates
+    explanation: >-
+      Update files Windows has already installed. Windows downloads them again if it needs them.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%WINDIR%\\SoftwareDistribution\\Download"]
+    instructions:
+      - "Easiest: Settings > System > Storage > Temporary files, tick \"Windows Update Cleanup\", then Remove files."
+      - "Or, in an administrator Command Prompt, stop the update service first, then delete the folder contents in Explorer and start the service again:"
+      - "net stop wuauserv"
+      - "net start wuauserv"
+
+  - id: windows-delivery-optimization
+    category: windows
+    title: Delivery Optimization cache
+    explanation: Update files Windows keeps to share with other PCs. They are downloaded again if needed.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%WINDIR%\\ServiceProfiles\\NetworkService\\AppData\\Local\\Microsoft\\Windows\\DeliveryOptimization\\Cache"]
+    instructions:
+      - "Settings > System > Storage > Temporary files, tick \"Delivery Optimization Files\", then Remove files."
+
+  - id: windows-error-reports
+    category: windows
+    title: Windows Error Reporting files
+    explanation: Crash reports Windows saved before sending them to Microsoft.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%PROGRAMDATA%\\Microsoft\\Windows\\WER", "%LOCALAPPDATA%\\Microsoft\\Windows\\WER"]
+    instructions:
+      - "Settings > System > Storage > Temporary files, tick \"System created Windows Error Reporting Files\", then Remove files."
+      - "Or delete the contents of the folder shown, in Explorer."
+
+  - id: windows-crash-dumps
+    category: windows
+    title: Crash and memory dumps
+    explanation: >-
+      Memory snapshots written when Windows or a program crashed. They are only useful for
+      diagnosing that crash. Keep them if you are chasing a recurring blue screen.
+    risk: Review
+    kind: manual-cleanup
+    paths:
+      - "%LOCALAPPDATA%\\CrashDumps"
+      - "%WINDIR%\\Minidump"
+      - "%WINDIR%\\MEMORY.DMP"
+      - "%WINDIR%\\LiveKernelReports"
+    instructions:
+      - "Settings > System > Storage > Temporary files, tick \"System error memory dump files\", then Remove files."
+      - "Or delete the file or folder contents shown, in Explorer."
+
+  - id: windows-thumbnail-cache
+    category: windows
+    title: Thumbnail and icon caches
+    explanation: Pictures Explorer keeps so folders open faster. Windows rebuilds them when you browse.
+    risk: Safe
+    kind: manual-cleanup
+    paths: ["%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer"]
+    globs: ["thumbcache_*.db", "iconcache_*.db"]
+    applies_to: file
+    instructions:
+      - "Settings > System > Storage > Temporary files, tick \"Thumbnails\", then Remove files."
+
+  - id: windows-prefetch
+    category: windows
+    title: Prefetch files
+    explanation: >-
+      Windows uses these to start programs a little faster. Clearing them gains little space and
+      slows the next starts, so this is for experts only.
+    risk: Expert
+    kind: manual-cleanup
+    paths: ["%WINDIR%\\Prefetch"]
+    instructions:
+      - "Open the folder below in Explorer (administrator permission needed) and delete the .pf files."
+      - "C:\\Windows\\Prefetch"
+
+  - id: upgrade-windows-old
+    category: upgrade
+    title: Previous Windows installation (Windows.old)
+    explanation: >-
+      The files of your earlier Windows version, kept so you can roll back after an upgrade.
+      Windows removes it by itself after about a month. Removing it ends the rollback option.
+    risk: Review
+    kind: manual-cleanup
+    paths: ["%SystemDrive%\\Windows.old"]
+    instructions:
+      - "Settings > System > Storage > Temporary files, tick \"Previous Windows installation(s)\", then Remove files."
+      - "Do not delete the folder in Explorer: it is protected. The Settings page above removes it correctly."
+
+  - id: upgrade-windows-bt
+    category: upgrade
+    title: Windows upgrade download ($WINDOWS.~BT)
+    explanation: Setup files left behind by a Windows upgrade or feature update.
+    risk: Review
+    kind: manual-cleanup
+    paths: ["%SystemDrive%\\$WINDOWS.~BT"]
+    instructions:
+      - "Settings > System > Storage > Temporary files, tick \"Windows upgrade log files\" and \"Temporary Windows installation files\", then Remove files."
+      - "Or run Disk Cleanup (cleanmgr), choose \"Clean up system files\" and tick the same entries."
+
+  - id: upgrade-windows-ws
+    category: upgrade
+    title: Windows upgrade staging ($WINDOWS.~WS)
+    explanation: Staging files from the Windows upgrade assistant.
+    risk: Review
+    kind: manual-cleanup
+    paths: ["%SystemDrive%\\$WINDOWS.~WS"]
+    instructions:
+      - "Settings > System > Storage > Temporary files, tick \"Temporary Windows installation files\", then Remove files."
+
+  - id: recycle-bin
+    category: recycle-bin
+    title: Recycle Bin
+    explanation: >-
+      Files you deleted that still use space until the bin is emptied. Check it first: you can
+      still restore anything you need.
+    risk: Review
+    kind: manual-cleanup
+    virtual_source: recycle-bin
+    instructions:
+      - "Open the Recycle Bin from the desktop, look through it, restore what you need, then choose Empty Recycle Bin."

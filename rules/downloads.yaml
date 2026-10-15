@@ -1,0 +1,47 @@
+# Built-in rules: triage of the Downloads folder. These are suggestions to look at,
+# not things to delete blindly: only you know what you still need.
+
+rules:
+  - id: downloads-extracted-archives
+    category: downloads
+    title: Archives that look already extracted
+    explanation: >-
+      A zip/7z/rar file with a folder of the same name next to it that holds at least half its size.
+      That usually means you unpacked it and the archive is now a duplicate. The check is a guess
+      from names and sizes only; open the folder first to make sure it is complete.
+    risk: Review
+    kind: manual-cleanup
+    paths: ["{Downloads}"]
+    globs: ["*.zip", "*.7z", "*.rar", "*.tar", "*.tar.gz", "*.tgz"]
+    applies_to: file
+    conditions:
+      extracted_sibling: true
+    instructions:
+      - "Open the extracted folder and check it has everything. If it does, delete the archive in Explorer."
+
+  - id: downloads-installers
+    category: downloads
+    title: Old installers
+    explanation: >-
+      Setup programs you downloaded more than 30 days ago. If the program is installed and works,
+      the installer is rarely needed again and can be downloaded from its website.
+    risk: Review
+    kind: manual-cleanup
+    paths: ["{Downloads}"]
+    globs: ["*.exe", "*.msi", "*.msix", "*.msixbundle", "*.appx"]
+    applies_to: file
+    min_age_days: 30
+    instructions:
+      - "Check that you do not need the installer for another PC or for offline reinstalling, then delete it in Explorer."
+
+  - id: downloads-disk-images
+    category: downloads
+    title: Disk images (ISO)
+    explanation: Disk images of operating systems or games. They are large and can usually be downloaded again.
+    risk: Review
+    kind: manual-cleanup
+    paths: ["{Downloads}"]
+    globs: ["*.iso", "*.img"]
+    applies_to: file
+    instructions:
+      - "If you no longer need to install from the image, delete it in Explorer."
