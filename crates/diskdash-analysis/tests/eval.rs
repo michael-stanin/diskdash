@@ -192,7 +192,7 @@ fn subset<'a>(set: &'a RuleSet, ids: &[&str]) -> Vec<&'a LoadedRule> {
 
 fn run_with(conn: &mut Connection, rules: &[&LoadedRule], probe: &dyn Probe) -> EvalSummary {
     let env = env();
-    let opts = EvalOptions { env: &env, probe, now: NOW };
+    let opts = EvalOptions { env: &env, probe, now: NOW, use_atime: false };
     evaluate(conn, rules, &opts, &mut |_, _, _| true).unwrap()
 }
 
@@ -566,7 +566,7 @@ fn cancelling_writes_nothing() {
     let set = load_all(None);
     let rules = subset(&set, &["logs-old-logs", "logs-old-temp-files"]);
     let env = env();
-    let opts = EvalOptions { env: &env, probe: &NullProbe, now: NOW };
+    let opts = EvalOptions { env: &env, probe: &NullProbe, now: NOW, use_atime: false };
     let mut calls = 0;
     let r = evaluate(&mut conn, &rules, &opts, &mut |_, _, _| {
         calls += 1;

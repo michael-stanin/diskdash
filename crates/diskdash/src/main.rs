@@ -50,6 +50,12 @@ async fn main() -> anyhow::Result<()> {
         env: Arc::new(diskdash::cleanup_sys::SystemEnv),
         probe: Arc::new(diskdash::cleanup_sys::WindowsProbe),
     });
+    let apps = Arc::new(diskdash::apps::AppsService {
+        db: db.clone(),
+        own: own.clone(),
+        registry: Arc::new(diskdash_inventory::apps::registry::WindowsRegistry),
+        prefetch: Arc::new(diskdash::apps::NoHelper),
+    });
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -57,6 +63,7 @@ async fn main() -> anyhow::Result<()> {
         jobs: jobs.clone(),
         elevated,
         cleanup: Some(cleanup.clone()),
+        last_access: diskdash_analysis::stale::query_setting,
     });
 
     let state = AppState {
@@ -67,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
         inventory,
         scans,
         cleanup,
+        apps,
         own,
         launcher: Arc::new(diskdash::shell::ExplorerLauncher),
         assets: Arc::new(EmbeddedAssets),

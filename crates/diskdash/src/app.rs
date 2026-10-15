@@ -43,6 +43,7 @@ pub struct AppState {
     pub inventory: Arc<InventoryService>,
     pub scans: Arc<ScanService>,
     pub cleanup: Arc<CleanupService>,
+    pub apps: Arc<crate::apps::AppsService>,
     pub own: OwnFiles,
     pub launcher: Arc<dyn Launcher>,
     pub assets: Arc<dyn AssetSource>,
@@ -72,10 +73,13 @@ pub fn build_router(state: AppState) -> Router {
         .route("/snapshots/{id}", get(get_snapshot).delete(delete_snapshot))
         .route("/snapshots/{id}/resume", post(resume_snapshot))
         .route("/snapshots/{id}/cleanup", get(snapshot_cleanup))
+        .route("/snapshots/{id}/stale", get(snapshot_stale))
+        .route("/snapshots/{id}/old-large", get(snapshot_old_large))
         .route("/cleanup/overview", get(cleanup_overview))
         .route("/cleanup/candidates", get(cleanup_candidates))
         .route("/cleanup/evaluate", post(cleanup_evaluate))
         .route("/rules", get(list_rules))
+        .route("/apps", get(list_apps))
         .route("/snapshots/{id}/children", get(snapshot_children))
         .route("/snapshots/{id}/tree", get(snapshot_tree))
         .route("/shell/reveal", post(reveal))
@@ -250,6 +254,30 @@ async fn resume_snapshot(State(st): State<AppState>, Path(id): Path<i64>) -> Res
     let settings = load_settings(&st.db).await?;
     let scans = st.scans.clone();
     blocking(move || Ok(Json(JobCreated { id: scans.resume(id, &settings)? }))).await
+}
+
+async fn snapshot_stale(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Query(p): Query<crate::stale::StaleParams>,
+) -> Result<Json<SnapshotData<crate::stale::StalePageView>>, ApiError> {
+    blocking(move || {
+        let env = st.cleanup.env.clone();
+        with_snapshot(&st, id, |c, snap| crate::stale::stale_items(c, snap, env.as_ref(), &p)).map(Json)
+    })
+    .await
+}
+
+async fn snapshot_old_large(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Query(p): Query<crate::stale::StaleParams>,
+) -> Result<Json<SnapshotData<crate::stale::StalePageView>>, ApiError> {
+    blocking(move || {
+        let env = st.cleanup.env.clone();
+        with_snapshot(&st, id, |c, snap| crate::stale::old_large_files(c, snap, env.as_ref(), &p)).map(Json)
+    })
+    .await
 }
 
 async fn snapshot_cleanup(State(st): State<AppState>, Path(id): Path<i64>) -> Result<Json<SnapshotCleanup>, ApiError> {
@@ -541,4 +569,10 @@ async fn api_not_found(uri: Uri) -> ApiError {
 
 async fn static_files(State(st): State<AppState>, uri: Uri) -> Response {
     assets::serve(st.assets.as_ref(), uri.path(), st.security.token())
+}
+
+/// Installed applications (read-only registry inventory).
+async fn list_apps(State(st): State<AppState>) -> Result<Json<crate::apps::AppsResponse>, ApiError> {
+    let svc = st.apps.clone();
+    blocking(move || svc.list().map(Json)).await
 }

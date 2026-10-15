@@ -4,6 +4,7 @@
 //! router with [`app::build_router`].
 
 pub mod app;
+pub mod apps;
 pub mod assets;
 pub mod cleanup;
 pub mod cleanup_sys;
@@ -18,5 +19,6 @@ pub mod security;
 pub mod settings;
 pub mod shell;
 pub mod snapshots;
+pub mod stale;
 pub mod system;
 pub mod time;

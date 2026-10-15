@@ -31,6 +31,8 @@ export interface DataTableProps<T> {
   data: T[];
   getRowId: (row: T) => string;
   rowActions?: (row: T) => ReactNode;
+  /** Grid track of the actions column; fixed so header and rows line up (default "auto"). */
+  actionsWidth?: string;
   initialSorting?: SortingState;
   filterPlaceholder?: string;
   /** Height of the scroll viewport in px. */
@@ -48,6 +50,7 @@ export function DataTable<T>({
   data,
   getRowId,
   rowActions,
+  actionsWidth = "auto",
   initialSorting = [],
   filterPlaceholder = "Filter",
   height = 440,
@@ -76,10 +79,10 @@ export function DataTable<T>({
   const visibleColumns = table.getVisibleLeafColumns();
   const template = useMemo(
     () =>
-      [...visibleColumns.map((c) => c.columnDef.meta?.width ?? "minmax(0,1fr)"), rowActions ? "auto" : null]
+      [...visibleColumns.map((c) => c.columnDef.meta?.width ?? "minmax(0,1fr)"), rowActions ? actionsWidth : null]
         .filter(Boolean)
         .join(" "),
-    [visibleColumns, rowActions],
+    [visibleColumns, rowActions, actionsWidth],
   );
 
   const rows = table.getRowModel().rows;

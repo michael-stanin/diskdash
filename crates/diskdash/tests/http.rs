@@ -79,6 +79,14 @@ fn fixture(dev: bool) -> Fixture {
 
 /// `env` is what `%TEMP%`, known folders and so on expand to in cleanup rules.
 fn fixture_env(dev: bool, env: diskdash_analysis::rules::MapEnv) -> Fixture {
+    fixture_full(dev, env, diskdash_inventory::apps::registry::FakeRegistry::default())
+}
+
+fn fixture_full(
+    dev: bool,
+    env: diskdash_analysis::rules::MapEnv,
+    registry: diskdash_inventory::apps::registry::FakeRegistry,
+) -> Fixture {
     let tmp = tempfile::tempdir().unwrap();
     let dd = DataDir::at(tmp.path().join("dd"));
     let own = OwnFiles::new(&dd).unwrap();
@@ -95,6 +103,12 @@ fn fixture_env(dev: bool, env: diskdash_analysis::rules::MapEnv) -> Fixture {
         env: Arc::new(env),
         probe: Arc::new(diskdash_analysis::eval::probe::NullProbe),
     });
+    let apps = Arc::new(diskdash::apps::AppsService {
+        db: db.clone(),
+        own: own.clone(),
+        registry: Arc::new(registry),
+        prefetch: Arc::new(diskdash::apps::NoHelper),
+    });
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -102,6 +116,7 @@ fn fixture_env(dev: bool, env: diskdash_analysis::rules::MapEnv) -> Fixture {
         jobs: jobs.clone(),
         elevated: false,
         cleanup: Some(cleanup.clone()),
+        last_access: || Some(diskdash_analysis::stale::Setting::UserDisabled),
     });
     let mut files = HashMap::new();
     files.insert(
@@ -118,6 +133,7 @@ fn fixture_env(dev: bool, env: diskdash_analysis::rules::MapEnv) -> Fixture {
         inventory,
         scans,
         cleanup,
+        apps,
         own,
         launcher: launcher.clone(),
         assets: Arc::new(MemoryAssets(files)),
@@ -389,3 +405,5 @@ async fn drives_refresh_is_a_job() {
 
 include!("include/scan_api.rs");
 include!("include/cleanup_api.rs");
+include!("include/stale_api.rs");
+include!("include/apps_api.rs");

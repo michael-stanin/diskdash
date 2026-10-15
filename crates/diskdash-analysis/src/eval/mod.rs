@@ -37,6 +37,8 @@ pub struct EvalOptions<'a> {
     pub probe: &'a dyn Probe,
     /// Unix seconds; ages are measured against this.
     pub now: i64,
+    /// Age by last-access time (the volume keeps it up to date) instead of last-modified time.
+    pub use_atime: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,10 +83,12 @@ struct Row {
     last_desc: i64,
     file_count: Option<i64>,
     path: Option<String>,
+    atime: Option<i64>,
+    max_atime: Option<i64>,
 }
 
 const COLS: &str =
-    "id, parent_id, name, kind, size, alloc, mtime, max_mtime, flags, coalesce(last_desc_id, id), file_count, path";
+    "id, parent_id, name, kind, size, alloc, mtime, max_mtime, flags, coalesce(last_desc_id, id), file_count, path, atime, max_atime";
 
 fn row_from(r: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
     Ok(Row {
@@ -100,6 +104,8 @@ fn row_from(r: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
         last_desc: r.get(9)?,
         file_count: r.get(10)?,
         path: r.get(11)?,
+        atime: r.get(12)?,
+        max_atime: r.get(13)?,
     })
 }
 
@@ -387,8 +393,14 @@ impl<'a> Ctx<'a> {
             }
         }
         if let Some(days) = rule.min_age_days {
-            // Last-modified time; folders use their newest file. Unknown age never matches.
-            let ts = if row.is_dir() { row.max_mtime.or(row.mtime) } else { row.mtime };
+            // Last-modified time (or last-access when reliable); folders use their newest file.
+            // Unknown age never matches.
+            let ts = match (self.opts.use_atime, row.is_dir()) {
+                (false, true) => row.max_mtime.or(row.mtime),
+                (false, false) => row.mtime,
+                (true, true) => row.max_atime.or(row.atime),
+                (true, false) => row.atime,
+            };
             let Some(ts) = ts.filter(|t| *t > 0) else { return Ok(false) };
             if self.opts.now - ts < i64::from(days) * 86_400 {
                 return Ok(false);

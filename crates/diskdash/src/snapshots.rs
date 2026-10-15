@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, UNIX_EPOCH};
 
+use diskdash_analysis::stale::{BasisReason, TimeBasis};
 use diskdash_core::category::Category;
 use diskdash_store::{Db, OwnFiles};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
@@ -77,13 +78,17 @@ pub struct Snapshot {
     #[ts(type = "number | null")]
     pub job_id: Option<i64>,
     pub error: Option<String>,
+    /// Timestamp the stale-data analysis uses for this scan.
+    pub time_basis: TimeBasis,
+    /// Why: last-access updates on or off, or unknown.
+    pub time_basis_reason: BasisReason,
     #[serde(skip)]
     pub db_file: String,
 }
 
 const SNAP_COLS: &str = "id, root, volume_id, status, method, elevated, hardlinks, started_at, finished_at, resumed,
     file_count, dir_count, link_count, total_size, total_alloc, error_count, access_denied_count, link_unknown_count,
-    job_id, error, db_file";
+    job_id, error, db_file, time_basis, time_basis_reason";
 
 fn snap_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Snapshot> {
     let u = |i: usize| r.get::<_, i64>(i).map(|v| v.max(0) as u64);
@@ -109,6 +114,8 @@ fn snap_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Snapshot> {
         job_id: r.get(18)?,
         error: r.get(19)?,
         db_file: r.get(20)?,
+        time_basis: TimeBasis::parse(&r.get::<_, String>(21)?),
+        time_basis_reason: BasisReason::parse(&r.get::<_, String>(22)?),
     })
 }
 
@@ -192,7 +199,9 @@ pub fn delete(conn: &Connection, own: &OwnFiles, snap: &Snapshot) -> Result<(), 
         )
         .unwrap_or(false);
     if busy {
-        return Err(ApiError::Conflict("this scan is still being checked for cleanup suggestions; try again in a moment".into()));
+        return Err(ApiError::Conflict(
+            "this scan is still being checked for cleanup suggestions; try again in a moment".into(),
+        ));
     }
     conn.execute("DELETE FROM snapshots WHERE id = ?1", [snap.id]).map_err(ApiError::internal)?;
     let base = own.root().join(&snap.db_file);
@@ -670,7 +679,7 @@ pub struct TreeResponse {
     pub limit: u32,
 }
 
-fn entry_by_id(conn: &Connection, id: i64) -> Result<EntryView, ApiError> {
+pub(crate) fn entry_by_id(conn: &Connection, id: i64) -> Result<EntryView, ApiError> {
     let cols = entry_cols(conn);
     conn.query_row(
         &format!("SELECT {cols} FROM entries e LEFT JOIN entries p ON p.id = e.parent_id WHERE e.id = ?1"),

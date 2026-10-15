@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use diskdash_analysis::stale::{decide, Setting};
 use diskdash_core::paths;
 use diskdash_core::scan::{self, ScanOptions, ScanProgress, ScanStatus, ScanSummary};
 use diskdash_inventory::model::{Drive, MediaClass};
@@ -70,6 +71,8 @@ pub struct ScanService {
     pub elevated: bool,
     /// Evaluates the cleanup rules on every scan that completes.
     pub cleanup: Option<Arc<CleanupService>>,
+    /// Reads the Windows last-access setting (`fsutil`); a function so tests can fix the answer.
+    pub last_access: fn() -> Option<Setting>,
 }
 
 fn drive_for<'a>(drives: &'a [Drive], root: &str) -> Option<&'a Drive> {
@@ -194,15 +197,25 @@ impl ScanService {
         }
         let (roots, merged) = validate_roots(&req.roots, &drives)?;
         let conn = self.db.connect().map_err(ApiError::internal)?;
+        let setting = (self.last_access)();
         let now = now_rfc3339();
         let mut items = Vec::new();
         let mut started = Vec::new();
         for (root, d) in &roots {
             let hardlinks = hardlinks_for(settings, d);
+            let decision = decide(setting, d.capacity);
             conn.execute(
-                "INSERT INTO snapshots (root, volume_id, elevated, hardlinks, status, started_at, db_file)
-                 VALUES (?1, ?2, ?3, ?4, 'running', ?5, '')",
-                params![root, d.id, self.elevated, if hardlinks { "detected" } else { "not_deduplicated" }, now],
+                "INSERT INTO snapshots (root, volume_id, elevated, hardlinks, status, started_at, db_file, time_basis, time_basis_reason)
+                 VALUES (?1, ?2, ?3, ?4, 'running', ?5, '', ?6, ?7)",
+                params![
+                    root,
+                    d.id,
+                    self.elevated,
+                    if hardlinks { "detected" } else { "not_deduplicated" },
+                    now,
+                    decision.basis.as_str(),
+                    decision.reason.as_str()
+                ],
             )
             .map_err(ApiError::internal)?;
             let id = conn.last_insert_rowid();

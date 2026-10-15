@@ -9,6 +9,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { SnapshotSummary } from "@/components/usage/SnapshotSummary";
 import { LazyUsageExplorer } from "@/components/usage/LazyUsageExplorer";
 import { CleanupTab } from "@/components/cleanup/CleanupTab";
+import { StaleNeedsScan, StaleTab } from "@/components/stale/StaleTab";
 import { ScanActivity } from "@/components/scans/ScanActivity";
 import { useScanDialog } from "@/components/scans/ScanDialog";
 import { SnapshotHistory } from "@/components/scans/SnapshotHistory";
@@ -125,7 +126,7 @@ export function DriveDetailPage() {
   const root = d?.letters[0] ? `${d.letters[0]}:\\` : d?.mount_paths[0];
   const latestComplete = snapshots.data?.find((s) => s.status === "complete" && s.root === root);
   const scanning = Boolean(snapshots.data?.some((s) => s.status === "running"));
-  const [tab, setTab] = useState<"usage" | "cleanup" | "hardware" | "history">("usage");
+  const [tab, setTab] = useState<"usage" | "cleanup" | "stale" | "hardware" | "history">("usage");
   const scan = () => root && scanDialog.open([root]);
 
   if (drive.isError) {
@@ -179,6 +180,7 @@ export function DriveDetailPage() {
           tabs={[
             { key: "usage", label: "Usage" },
             { key: "cleanup", label: "Cleanup" },
+            { key: "stale", label: "Stale" },
             { key: "hardware", label: "Hardware & health" },
             { key: "history", label: "Scan history" },
           ]}
@@ -227,6 +229,14 @@ export function DriveDetailPage() {
                   }
                 />
               </Card>
+            ))}
+          {tab === "stale" &&
+            (snapshots.isPending ? (
+              <Skeleton className="h-[440px] w-full rounded-card" />
+            ) : latestComplete ? (
+              <StaleTab snapshot={latestComplete} defaultMonths={settings.data?.stale_months} />
+            ) : (
+              <StaleNeedsScan onScan={scan} scanning={scanning} />
             ))}
           {tab === "hardware" && (
             <>

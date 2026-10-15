@@ -16,6 +16,8 @@ import type { SnapshotData } from "./types/SnapshotData";
 import type { JobStatus } from "./types/JobStatus";
 import type { Settings } from "./types/Settings";
 import type { SystemInfo } from "./types/SystemInfo";
+import type { AppsResponse } from "./types/AppsResponse";
+import type { StalePageView } from "./types/StalePageView";
 import type { CandidatePage } from "./types/CandidatePage";
 import type { CleanupOverview } from "./types/CleanupOverview";
 import type { Risk } from "./types/Risk";
@@ -350,5 +352,43 @@ export function useRerunRules() {
     mutationFn: (snapshotIds: number[] = []) =>
       api<JobCreated>("/cleanup/evaluate", { method: "POST", body: { snapshot_ids: snapshotIds } }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: cleanupKeys.all }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Stale data and installed apps
+// ---------------------------------------------------------------------------
+
+/** Files and folders not touched for `months`, largest first, 20 per page. */
+export function useStale(id: number | undefined, months: number) {
+  return useInfiniteQuery({
+    queryKey: ["snapshots", id, "stale", months] as const,
+    queryFn: ({ pageParam, signal }) =>
+      api<SnapshotData<StalePageView>>(`/snapshots/${id}/stale?months=${months}&limit=20&cursor=${pageParam}`, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.data.next_cursor ?? undefined,
+    enabled: id !== undefined,
+    staleTime: Infinity,
+  });
+}
+
+/** Large files ranked by size x age. */
+export function useOldLarge(id: number | undefined, floorMib: number) {
+  return useInfiniteQuery({
+    queryKey: ["snapshots", id, "old-large", floorMib] as const,
+    queryFn: ({ pageParam, signal }) =>
+      api<SnapshotData<StalePageView>>(`/snapshots/${id}/old-large?floor_mib=${floorMib}&limit=20&cursor=${pageParam}`, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.data.next_cursor ?? undefined,
+    enabled: id !== undefined,
+    staleTime: Infinity,
+  });
+}
+
+export function useApps() {
+  return useQuery({
+    queryKey: ["apps"] as const,
+    queryFn: ({ signal }) => api<AppsResponse>("/apps", { signal }),
+    staleTime: 60_000,
   });
 }

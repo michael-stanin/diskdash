@@ -14,6 +14,7 @@ use diskdash_analysis::rules::{
     self, expand, AppliesTo, Conditions, Env, LoadedRule, Risk, RuleIssue, RuleKind, RuleSet, RuleSource, UserRulesDir,
     VirtualSource,
 };
+use diskdash_analysis::stale::TimeBasis;
 use diskdash_store::{Db, OwnFiles};
 use rusqlite::{params, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
@@ -357,8 +358,15 @@ impl CleanupService {
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
 
         let rules: Vec<&LoadedRule> = set.active().collect();
-        let opts = EvalOptions { env: self.env.as_ref(), probe: self.probe.as_ref(), now: unix_now() };
+        let opts = EvalOptions {
+            env: self.env.as_ref(),
+            probe: self.probe.as_ref(),
+            now: unix_now(),
+            use_atime: snap.time_basis == TimeBasis::Atime,
+        };
         let summary = evaluate(&mut conn, &rules, &opts, progress)?;
+        // Release the snapshot file before the run is marked complete (it may be deleted right away).
+        drop(conn);
 
         let tx = cat.transaction()?;
         tx.execute("DELETE FROM cleanup_savings WHERE snapshot_id = ?1", [id])?;
@@ -588,7 +596,7 @@ impl CleanupService {
     }
 }
 
-fn unix_now() -> i64 {
+pub fn unix_now() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
 }
 

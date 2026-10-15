@@ -4,6 +4,7 @@
 //! behavior query`, and optionally smartctl with an argument allow-list.
 //! Fixed internal drives only; network shares are never contacted.
 
+pub mod apps;
 pub mod assemble;
 pub mod classify;
 pub mod health;
