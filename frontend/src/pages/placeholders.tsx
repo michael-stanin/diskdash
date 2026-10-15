@@ -1,24 +1,9 @@
-import { CheckSquare, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Link } from "react-router";
 import { PageHeader } from "@/app/PageHeader";
 import { EmptyState } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-
-export function PlansPage() {
-  return (
-    <>
-      <PageHeader title="Plans" subtitle="Checklists of suggestions you decide to carry out yourself." />
-      <Card>
-        <EmptyState
-          icon={<CheckSquare />}
-          title="No plans yet"
-          description="Add suggestions to a plan to get a checklist with the exact steps and the space each one frees."
-        />
-      </Card>
-    </>
-  );
-}
 
 export function NotFoundPage() {
   return (

@@ -117,6 +117,13 @@ fn fixture_full(
         env: Arc::new(diskdash_analysis::rules::MapEnv::default()),
         source: Arc::new(diskdash::dup_sys::FsSource),
     });
+    let plans = Arc::new(diskdash::plans::PlanService {
+        db: db.clone(),
+        own: own.clone(),
+        jobs: jobs.clone(),
+        env: cleanup.env.clone(),
+        templates: diskdash_analysis::plans::Templates::builtin(),
+    });
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -124,6 +131,7 @@ fn fixture_full(
         jobs: jobs.clone(),
         elevated: false,
         cleanup: Some(cleanup.clone()),
+        plans: Some(plans.clone()),
         last_access: || Some(diskdash_analysis::stale::Setting::UserDisabled),
     });
     let mut files = HashMap::new();
@@ -143,6 +151,7 @@ fn fixture_full(
         cleanup,
         apps,
         dups,
+        plans,
         own,
         launcher: launcher.clone(),
         assets: Arc::new(MemoryAssets(files)),
@@ -173,7 +182,8 @@ fn default_settings() -> serde_json::Value {
     serde_json::json!({
         "low_space_percent": 10.0, "low_space_floor_gib": 20, "stale_months": 12,
         "hdd_scan_concurrency": 1, "ssd_scan_concurrency": 4, "chart_children_per_level": 20,
-        "hardlink_detection": "system-volume", "hardlink_overrides": {}
+        "hardlink_detection": "system-volume", "hardlink_overrides": {},
+        "excluded_paths": [], "protected_paths": []
     })
 }
 
@@ -417,3 +427,4 @@ include!("include/cleanup_api.rs");
 include!("include/stale_api.rs");
 include!("include/apps_api.rs");
 include!("include/dup_api.rs");
+include!("include/plans_api.rs");

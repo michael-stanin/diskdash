@@ -39,6 +39,9 @@ pub struct EvalOptions<'a> {
     pub now: i64,
     /// Age by last-access time (the volume keeps it up to date) instead of last-modified time.
     pub use_atime: bool,
+    /// Paths the user excluded or protected in Settings.
+    pub user_excluded: &'a [String],
+    pub user_protected: &'a [String],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -278,7 +281,7 @@ impl<'a> Ctx<'a> {
             drive_root,
             system_drive,
             opts,
-            protected: Protected::new(opts.env),
+            protected: Protected::new(opts.env).with_user(opts.user_excluded, opts.user_protected),
             dir_paths: RefCell::new(HashMap::new()),
         })
     }

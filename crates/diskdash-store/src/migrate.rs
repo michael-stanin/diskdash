@@ -18,6 +18,7 @@ pub const MIGRATIONS: &[Migration] = &[
     Migration { version: 4, name: "cleanup", sql: include_str!("../migrations/0004_cleanup.sql") },
     Migration { version: 5, name: "time_basis", sql: include_str!("../migrations/0005_time_basis.sql") },
     Migration { version: 6, name: "duplicates", sql: include_str!("../migrations/0006_duplicates.sql") },
+    Migration { version: 7, name: "plans", sql: include_str!("../migrations/0007_plans.sql") },
 ];
 
 #[derive(Debug, thiserror::Error)]

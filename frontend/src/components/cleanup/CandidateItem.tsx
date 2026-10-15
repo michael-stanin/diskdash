@@ -4,6 +4,7 @@ import { ApiError } from "@/api/client";
 import { useNestedCandidates, useReveal } from "@/api/queries";
 import type { CandidateView } from "@/api/types/CandidateView";
 import { RiskBadge } from "@/components/Badges";
+import { AddToPlanButton } from "@/components/plans/AddToPlan";
 import { isCommand } from "@/components/cleanup/instructions";
 import { RelativeTime, SizeDisplay } from "@/components/SizeDisplay";
 import { useToast } from "@/components/Toast";
@@ -144,6 +145,7 @@ export function CandidateItem({ item, showDrive }: CandidateItemProps) {
             <Button size="icon-sm" variant="outline" aria-label={`Copy path of ${item.title}`} title="Copy path" onClick={() => copy(item.path, "Path copied")}>
               <Copy />
             </Button>
+            <AddToPlanButton what={item.path} size="icon-sm" body={{ source: "cleanup", snapshot_id: item.snapshot_id, match_id: item.match_id }} />
             <Button size="sm" variant="secondary" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
               <ListChecks /> How to
               <ChevronDown className={cn("transition-transform", open && "rotate-180")} />

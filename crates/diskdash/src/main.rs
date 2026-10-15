@@ -67,6 +67,13 @@ async fn main() -> anyhow::Result<()> {
         env: Arc::new(diskdash::cleanup_sys::SystemEnv),
         source: Arc::new(diskdash::dup_sys::FsSource),
     });
+    let plans = Arc::new(diskdash::plans::PlanService {
+        db: db.clone(),
+        own: own.clone(),
+        jobs: jobs.clone(),
+        env: Arc::new(diskdash::cleanup_sys::SystemEnv),
+        templates: diskdash_analysis::plans::Templates::builtin(),
+    });
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -74,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
         jobs: jobs.clone(),
         elevated,
         cleanup: Some(cleanup.clone()),
+        plans: Some(plans.clone()),
         last_access: diskdash_analysis::stale::query_setting,
     });
 
@@ -87,6 +95,7 @@ async fn main() -> anyhow::Result<()> {
         cleanup,
         apps,
         dups,
+        plans,
         own,
         launcher: Arc::new(diskdash::shell::ExplorerLauncher),
         assets: Arc::new(EmbeddedAssets),

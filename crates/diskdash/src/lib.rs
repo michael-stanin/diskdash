@@ -16,6 +16,8 @@ pub mod events;
 pub mod inventory;
 pub mod jobs;
 pub mod logging;
+pub mod plans;
+pub mod protection;
 pub mod scans;
 pub mod security;
 pub mod settings;

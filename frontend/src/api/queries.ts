@@ -23,6 +23,10 @@ import type { DupRun } from "./types/DupRun";
 import type { NearView } from "./types/NearView";
 import type { SkipRow } from "./types/SkipRow";
 import type { SuggestResult } from "./types/SuggestResult";
+import type { AddItemResult } from "./types/AddItemResult";
+import type { PlanItemView } from "./types/PlanItemView";
+import type { PlanSummary } from "./types/PlanSummary";
+import type { PlanView } from "./types/PlanView";
 import type { CandidatePage } from "./types/CandidatePage";
 import type { CleanupOverview } from "./types/CleanupOverview";
 import type { Risk } from "./types/Risk";
@@ -489,4 +493,77 @@ export function useClearSuggestions() {
     mutationFn: () => api<void>("/duplicates/suggestions", { method: "DELETE" }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["duplicates", "groups"] }),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup plans
+// ---------------------------------------------------------------------------
+
+export const planKeys = { all: ["plans"] as const, one: (id: number) => ["plans", id] as const };
+
+export function usePlans(enabled = true) {
+  return useQuery({ queryKey: planKeys.all, queryFn: ({ signal }) => api<PlanSummary[]>("/plans", { signal }), staleTime: 5_000, enabled });
+}
+
+export function usePlan(id: number | null) {
+  return useQuery({
+    queryKey: planKeys.one(id ?? -1),
+    queryFn: ({ signal }) => api<PlanView>(`/plans/${id}`, { signal }),
+    enabled: id !== null,
+    staleTime: 5_000,
+  });
+}
+
+function usePlanMutation<V, R>(fn: (v: V) => Promise<R>) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: () => void qc.invalidateQueries({ queryKey: planKeys.all }) });
+}
+
+export function useCreatePlan() {
+  return usePlanMutation((name: string) => api<PlanSummary>("/plans", { method: "POST", body: { name } }));
+}
+
+export function useRenamePlan() {
+  return usePlanMutation((v: { id: number; name: string }) => api<PlanSummary>(`/plans/${v.id}`, { method: "PATCH", body: { name: v.name } }));
+}
+
+export function useDeletePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/plans/${id}`, { method: "DELETE" }),
+    onSuccess: (_r, id) => {
+      // Drop it from the list at once, so the page moves on before anything asks for the deleted plan again.
+      qc.setQueryData<PlanSummary[]>(planKeys.all, (old) => old?.filter((p) => p.id !== id));
+      void qc.invalidateQueries({ queryKey: planKeys.all, exact: true });
+    },
+  });
+}
+
+export interface AddToPlanBody {
+  source: "cleanup" | "duplicate" | "stale" | "tiering";
+  snapshot_id?: number;
+  match_id?: number;
+  entry_id?: number;
+  member_id?: number;
+  destination?: string;
+}
+
+export function useAddToPlan() {
+  return usePlanMutation((v: { plan: number; body: AddToPlanBody }) =>
+    api<AddItemResult>(`/plans/${v.plan}/items`, { method: "POST", body: v.body }),
+  );
+}
+
+export function usePatchPlanItem() {
+  return usePlanMutation((v: { plan: number; item: number; status?: string; note?: string }) =>
+    api<PlanItemView>(`/plans/${v.plan}/items/${v.item}`, { method: "PATCH", body: { status: v.status, note: v.note } }),
+  );
+}
+
+export function useRemovePlanItem() {
+  return usePlanMutation((v: { plan: number; item: number }) => api<void>(`/plans/${v.plan}/items/${v.item}`, { method: "DELETE" }));
+}
+
+export function useVerifyPlan() {
+  return usePlanMutation((id: number) => api<JobCreated>(`/plans/${id}/verify`, { method: "POST" }));
 }

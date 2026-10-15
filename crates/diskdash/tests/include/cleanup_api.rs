@@ -249,3 +249,32 @@ async fn nothing_is_modified_by_evaluation() {
     wait_for_cleanup(&f, sid).await;
     test_fixtures::assert_tree_unchanged(tree.root(), &before);
 }
+
+#[tokio::test]
+async fn exclusions_are_validated_and_remove_suggestions_everywhere() {
+    let (tree, env) = cleanup_tree();
+    let f = fixture_env(false, env);
+    let put = |body: serde_json::Value| {
+        req(Method::PUT, "/api/v1/settings")
+            .header("x-diskdash-token", TOKEN)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(json_body(body))
+            .unwrap()
+    };
+    let (_, current) = json(&f.router, get("/api/v1/settings")).await;
+    let mut bad = current.clone();
+    bad["excluded_paths"] = serde_json::json!(["not a path"]);
+    let (status, err) = json(&f.router, put(bad)).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{err}");
+    assert!(err["fields"]["excluded_paths"].is_string());
+
+    let mut good = current.clone();
+    good["excluded_paths"] = serde_json::json!([tree.path("logs")]);
+    assert_eq!(json(&f.router, put(good)).await.0, StatusCode::OK);
+    let sid = scan_tree(&f, &tree).await;
+    wait_for_cleanup(&f, sid).await;
+    let (_, page) = json(&f.router, get(&format!("/api/v1/cleanup/candidates?snapshot_id={sid}&category=logs"))).await;
+    assert_eq!(page["items"].as_array().unwrap().len(), 0, "old.log is inside the excluded folder");
+    let (_, other) = json(&f.router, get(&format!("/api/v1/cleanup/candidates?snapshot_id={sid}&category=developer"))).await;
+    assert_eq!(other["items"].as_array().unwrap().len(), 1, "everything else still suggested");
+}

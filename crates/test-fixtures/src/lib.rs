@@ -103,6 +103,11 @@ impl Fixture {
         file.set_modified(when).expect("set modified time");
     }
 
+    /// Delete a fixture folder with everything in it (simulates the user cleaning up by hand).
+    pub fn remove_dir(&self, rel: &str) {
+        fs::remove_dir_all(self.path(rel)).expect("remove fixture folder");
+    }
+
     /// `count` empty files named f0000… in `rel` (bulk trees for benchmarks).
     pub fn empty_files(&self, rel: &str, count: usize) {
         let dir = self.dir(rel);

@@ -6,6 +6,7 @@ import type { Snapshot } from "@/api/types/Snapshot";
 import type { StaleItem } from "@/api/types/StaleItem";
 import type { StalePageView } from "@/api/types/StalePageView";
 import { useCopy } from "@/components/cleanup/CandidateItem";
+import { AddToPlanButton } from "@/components/plans/AddToPlan";
 import { RelativeTime, SizeDisplay } from "@/components/SizeDisplay";
 import { EmptyState, ErrorState } from "@/components/States";
 import { EntryActions } from "@/components/usage/EntryActions";
@@ -92,6 +93,7 @@ function Row({ item, snapshotId, showScore }: { item: StaleItem; snapshotId: num
       </span>
       <span className="flex shrink-0 gap-1.5">
         <EntryActions snapshotId={snapshotId} entry={e} />
+        <AddToPlanButton what={e.path} size="icon-sm" body={{ source: "stale", snapshot_id: snapshotId, entry_id: e.id }} />
       </span>
     </li>
   );

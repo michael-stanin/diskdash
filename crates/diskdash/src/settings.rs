@@ -39,6 +39,10 @@ pub struct Settings {
     pub hardlink_detection: HardlinkDefault,
     /// Per-volume overrides, keyed by volume GUID path.
     pub hardlink_overrides: BTreeMap<String, bool>,
+    /// Folders that are never suggested by any analysis (Settings > Exclusions).
+    pub excluded_paths: Vec<String>,
+    /// Folders that are never suggested and never added to a plan, on top of the built-in list.
+    pub protected_paths: Vec<String>,
 }
 
 impl Default for Settings {
@@ -52,6 +56,8 @@ impl Default for Settings {
             chart_children_per_level: 20,
             hardlink_detection: HardlinkDefault::SystemVolume,
             hardlink_overrides: BTreeMap::new(),
+            excluded_paths: Vec::new(),
+            protected_paths: Vec::new(),
         }
     }
 }
@@ -81,6 +87,12 @@ impl Settings {
         );
         let bad_override = self.hardlink_overrides.keys().any(|k| !k.starts_with(r"\\?\Volume{"));
         range("hardlink_overrides", !bad_override, "keys must be volume GUID paths");
+        for (name, list) in [("excluded_paths", &self.excluded_paths), ("protected_paths", &self.protected_paths)] {
+            let bad =
+                list.iter().position(|p| diskdash_analysis::rules::expand::normalize(p).is_none() || p.len() > 400);
+            range(name, list.len() <= 200, "at most 200 folders");
+            range(name, bad.is_none(), "every entry must be a full folder path such as D:\\Photos");
+        }
         e
     }
 

@@ -45,6 +45,7 @@ pub struct AppState {
     pub cleanup: Arc<CleanupService>,
     pub apps: Arc<crate::apps::AppsService>,
     pub dups: Arc<crate::duplicates::DupService>,
+    pub plans: Arc<crate::plans::PlanService>,
     pub own: OwnFiles,
     pub launcher: Arc<dyn Launcher>,
     pub assets: Arc<dyn AssetSource>,
@@ -81,6 +82,12 @@ pub fn build_router(state: AppState) -> Router {
         .route("/cleanup/evaluate", post(cleanup_evaluate))
         .route("/rules", get(list_rules))
         .route("/apps", get(list_apps))
+        .route("/plans", get(list_plans).post(create_plan))
+        .route("/plans/{id}", get(get_plan).patch(rename_plan).delete(delete_plan))
+        .route("/plans/{id}/items", post(add_plan_item))
+        .route("/plans/{id}/items/{item}", axum::routing::patch(patch_plan_item).delete(remove_plan_item))
+        .route("/plans/{id}/export", get(export_plan))
+        .route("/plans/{id}/verify", post(verify_plan))
         .route("/duplicates/runs", post(start_duplicates))
         .route("/duplicates/status", get(duplicates_status))
         .route("/duplicates/groups", get(duplicates_groups))
@@ -263,14 +270,21 @@ async fn resume_snapshot(State(st): State<AppState>, Path(id): Path<i64>) -> Res
     blocking(move || Ok(Json(JobCreated { id: scans.resume(id, &settings)? }))).await
 }
 
+/// Built-in plus user path protection for the current settings.
+fn protection_for(st: &AppState) -> Result<diskdash_analysis::eval::protected::Protected, ApiError> {
+    let conn = st.db.connect_read_only().map_err(ApiError::internal)?;
+    let settings = settings::load(&conn).map_err(ApiError::internal)?;
+    Ok(crate::protection::build(st.cleanup.env.as_ref(), &settings))
+}
+
 async fn snapshot_stale(
     State(st): State<AppState>,
     Path(id): Path<i64>,
     Query(p): Query<crate::stale::StaleParams>,
 ) -> Result<Json<SnapshotData<crate::stale::StalePageView>>, ApiError> {
     blocking(move || {
-        let env = st.cleanup.env.clone();
-        with_snapshot(&st, id, |c, snap| crate::stale::stale_items(c, snap, env.as_ref(), &p)).map(Json)
+        let protected = protection_for(&st)?;
+        with_snapshot(&st, id, |c, snap| crate::stale::stale_items(c, snap, &protected, &p)).map(Json)
     })
     .await
 }
@@ -281,8 +295,8 @@ async fn snapshot_old_large(
     Query(p): Query<crate::stale::StaleParams>,
 ) -> Result<Json<SnapshotData<crate::stale::StalePageView>>, ApiError> {
     blocking(move || {
-        let env = st.cleanup.env.clone();
-        with_snapshot(&st, id, |c, snap| crate::stale::old_large_files(c, snap, env.as_ref(), &p)).map(Json)
+        let protected = protection_for(&st)?;
+        with_snapshot(&st, id, |c, snap| crate::stale::old_large_files(c, snap, &protected, &p)).map(Json)
     })
     .await
 }
@@ -634,4 +648,95 @@ async fn duplicates_skips(
 ) -> Result<Json<Vec<crate::duplicates::SkipRow>>, ApiError> {
     let svc = st.dups.clone();
     blocking(move || svc.skips(q.reason.as_deref()).map(Json)).await
+}
+
+#[derive(Deserialize)]
+struct NewPlan {
+    name: String,
+}
+
+async fn list_plans(State(st): State<AppState>) -> Result<Json<Vec<crate::plans::PlanSummary>>, ApiError> {
+    let svc = st.plans.clone();
+    blocking(move || svc.list().map(Json)).await
+}
+
+async fn create_plan(
+    State(st): State<AppState>,
+    Json(b): Json<NewPlan>,
+) -> Result<Json<crate::plans::PlanSummary>, ApiError> {
+    let svc = st.plans.clone();
+    blocking(move || svc.create(&b.name).map(Json)).await
+}
+
+async fn get_plan(State(st): State<AppState>, Path(id): Path<i64>) -> Result<Json<crate::plans::PlanView>, ApiError> {
+    let svc = st.plans.clone();
+    blocking(move || svc.get(id).map(Json)).await
+}
+
+async fn rename_plan(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Json(b): Json<crate::plans::PlanPatch>,
+) -> Result<Json<crate::plans::PlanSummary>, ApiError> {
+    let svc = st.plans.clone();
+    blocking(move || svc.rename(id, &b.name).map(Json)).await
+}
+
+async fn delete_plan(State(st): State<AppState>, Path(id): Path<i64>) -> Result<axum::http::StatusCode, ApiError> {
+    let svc = st.plans.clone();
+    blocking(move || svc.delete(id).map(|()| axum::http::StatusCode::NO_CONTENT)).await
+}
+
+async fn add_plan_item(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Json(req): Json<crate::plans::AddItemRequest>,
+) -> Result<Json<crate::plans::AddItemResult>, ApiError> {
+    let svc = st.plans.clone();
+    blocking(move || svc.add_item(id, &req).map(Json)).await
+}
+
+async fn patch_plan_item(
+    State(st): State<AppState>,
+    Path((id, item)): Path<(i64, i64)>,
+    Json(p): Json<crate::plans::ItemPatch>,
+) -> Result<Json<crate::plans::PlanItemView>, ApiError> {
+    let svc = st.plans.clone();
+    blocking(move || svc.patch_item(id, item, &p).map(Json)).await
+}
+
+async fn remove_plan_item(
+    State(st): State<AppState>,
+    Path((id, item)): Path<(i64, i64)>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let svc = st.plans.clone();
+    blocking(move || svc.remove_item(id, item).map(|()| axum::http::StatusCode::NO_CONTENT)).await
+}
+
+#[derive(Deserialize)]
+struct ExportQuery {
+    format: Option<String>,
+}
+
+/// Download a plan as CSV or TXT: paths and instructions, never a script.
+async fn export_plan(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Query(q): Query<ExportQuery>,
+) -> Result<Response, ApiError> {
+    let svc = st.plans.clone();
+    let format = q.format.unwrap_or_else(|| "csv".into());
+    let (name, content_type, body) = blocking(move || svc.export(id, &format)).await?;
+    let mut resp = body.into_response();
+    let h = resp.headers_mut();
+    h.insert(axum::http::header::CONTENT_TYPE, axum::http::HeaderValue::from_static(content_type));
+    if let Ok(v) = axum::http::HeaderValue::from_str(&format!("attachment; filename=\"{name}\"")) {
+        h.insert(axum::http::header::CONTENT_DISPOSITION, v);
+    }
+    Ok(resp)
+}
+
+async fn verify_plan(State(st): State<AppState>, Path(id): Path<i64>) -> Result<Json<JobCreated>, ApiError> {
+    let svc = st.plans.clone();
+    blocking(move || Ok(Json(JobCreated { id: svc.submit_verify(&[], Some(id))? }))).await
 }

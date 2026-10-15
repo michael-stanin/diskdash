@@ -29,4 +29,12 @@ chart_children_per_level: number, hardlink_detection: HardlinkDefault,
 /**
  * Per-volume overrides, keyed by volume GUID path.
  */
-hardlink_overrides: { [key in string]?: boolean }, };
+hardlink_overrides: { [key in string]?: boolean }, 
+/**
+ * Folders that are never suggested by any analysis (Settings > Exclusions).
+ */
+excluded_paths: Array<string>, 
+/**
+ * Folders that are never suggested and never added to a plan, on top of the built-in list.
+ */
+protected_paths: Array<string>, };

@@ -10,7 +10,6 @@ use diskdash_analysis::duplicates::{
     self, choose_keep, near_duplicates, CacheKey, CachedHash, EngineEnv, HashCache, KeepRule, Member, ScopeSnapshot,
     SkipReason, Source, ALGO,
 };
-use diskdash_analysis::eval::protected::Protected;
 use diskdash_analysis::rules::Env;
 use diskdash_inventory::model::MediaClass;
 use diskdash_store::{Db, OwnFiles};
@@ -720,7 +719,8 @@ impl DupJob {
                 conn,
             })
             .collect();
-        let protected = Protected::new(svc.env.as_ref());
+        let user = settings::load(&cat).unwrap_or_default();
+        let protected = crate::protection::build(svc.env.as_ref(), &user);
         let selection =
             duplicates::select(&scopes, self.min_size, &protected).map_err(|e| JobError::Failed(e.to_string()))?;
         let cands = &selection.candidates;

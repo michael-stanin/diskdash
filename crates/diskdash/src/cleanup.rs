@@ -358,11 +358,14 @@ impl CleanupService {
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
 
         let rules: Vec<&LoadedRule> = set.active().collect();
+        let user = crate::settings::load(&cat).unwrap_or_default();
         let opts = EvalOptions {
             env: self.env.as_ref(),
             probe: self.probe.as_ref(),
             now: unix_now(),
             use_atime: snap.time_basis == TimeBasis::Atime,
+            user_excluded: &user.excluded_paths,
+            user_protected: &user.protected_paths,
         };
         let summary = evaluate(&mut conn, &rules, &opts, progress)?;
         // Release the snapshot file before the run is marked complete (it may be deleted right away).

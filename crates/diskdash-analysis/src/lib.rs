@@ -6,5 +6,6 @@
 
 pub mod duplicates;
 pub mod eval;
+pub mod plans;
 pub mod rules;
 pub mod stale;

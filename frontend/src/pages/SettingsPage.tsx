@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PathList } from "@/components/settings/PathList";
 
 type NumericKey = {
   [K in keyof Settings]: Settings[K] extends number ? K : never;
@@ -153,6 +154,31 @@ function SettingsForm({ saved }: { saved: Settings }) {
             <CardBody className="divide-y divide-border py-2">
               {num("stale_months", "Stale after", "Files untouched for this long count as stale.", "months")}
               {num("chart_children_per_level", "Chart detail", "Folders shown per level in the treemap before grouping into “Other”.", "per level")}
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Exclusions and protected folders</CardTitle>
+            </CardHeader>
+            <CardBody className="divide-y divide-border py-2">
+              <PathList
+                id="excluded_paths"
+                label="Excluded folders"
+                hint="Nothing in these folders is ever suggested: not as cleanup, stale data, duplicates or a move."
+                value={draft.excluded_paths}
+                error={fieldErrors.excluded_paths}
+                emptyText="No exclusions yet. Add a folder you never want to see in suggestions, such as a photo archive."
+                onChange={(v) => setDraft((d) => ({ ...d, excluded_paths: v }))}
+              />
+              <PathList
+                id="protected_paths"
+                label="Protected folders"
+                hint="Like exclusions, and they can never be added to a plan. Windows and Program Files are always protected."
+                value={draft.protected_paths}
+                error={fieldErrors.protected_paths}
+                emptyText="No extra protected folders. The built-in protection (Windows, Program Files and similar) is always on."
+                onChange={(v) => setDraft((d) => ({ ...d, protected_paths: v }))}
+              />
             </CardBody>
           </Card>
           <Card>

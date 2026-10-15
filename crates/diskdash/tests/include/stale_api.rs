@@ -67,3 +67,29 @@ async fn the_time_basis_is_stored_with_the_scan() {
     assert_eq!(snap["time_basis"], "mtime");
     assert_eq!(snap["time_basis_reason"], "disabled");
 }
+
+fn put_settings(body: serde_json::Value) -> Request<Body> {
+    req(Method::PUT, "/api/v1/settings")
+        .header("x-diskdash-token", TOKEN)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(json_body(body))
+        .unwrap()
+}
+
+#[tokio::test]
+async fn excluded_folders_disappear_from_stale_and_duplicates() {
+    let tree = dup_tree();
+    let f = fixture(false);
+    let (_, mut settings) = json(&f.router, get("/api/v1/settings")).await;
+    settings["excluded_paths"] = serde_json::json!([tree.path("old"), tree.path("backup")]);
+    assert_eq!(json(&f.router, put_settings(settings)).await.0, StatusCode::OK);
+    let sid = scan_tree(&f, &tree).await;
+
+    let (_, stale) = json(&f.router, get(&format!("/api/v1/snapshots/{sid}/stale?months=12"))).await;
+    let paths: Vec<&str> = stale["data"]["items"].as_array().unwrap().iter().map(|i| i["entry"]["path"].as_str().unwrap()).collect();
+    assert!(!paths.iter().any(|p| p.contains(r"\old")), "{paths:?}");
+
+    let run = find_dups(&f, serde_json::json!({ "snapshot_ids": [sid] })).await;
+    assert_eq!(run["group_count"], 0, "two of the three copies are excluded, so no group is left: {run}");
+    assert!(run["skips"]["protected"].as_u64().unwrap() >= 2);
+}

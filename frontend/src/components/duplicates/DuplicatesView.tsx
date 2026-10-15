@@ -19,6 +19,7 @@ import type { DupGroup } from "@/api/types/DupGroup";
 import type { DupMember } from "@/api/types/DupMember";
 import type { DupRun } from "@/api/types/DupRun";
 import { useCopy } from "@/components/cleanup/CandidateItem";
+import { AddToPlanButton } from "@/components/plans/AddToPlan";
 import { FillBar } from "@/components/FillBar";
 import { RelativeTime, SizeDisplay } from "@/components/SizeDisplay";
 import { EmptyState, ErrorState } from "@/components/States";
@@ -178,6 +179,7 @@ function MemberRow({ m }: { m: DupMember }) {
         <Button size="icon-sm" variant="outline" aria-label={`Copy path ${m.path}`} title="Copy path" onClick={() => copy(m.path, "Path copied")}>
           <Copy />
         </Button>
+        <AddToPlanButton what={m.path} size="icon-sm" body={{ source: "duplicate", member_id: m.id }} />
       </div>
       {m.suggested === "remove" && <p className="m-0 pl-[76px] text-xs text-muted-foreground">{REMOVE_STEPS}</p>}
     </li>

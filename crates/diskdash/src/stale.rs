@@ -2,7 +2,6 @@
 //! the analysis only reads the snapshot database.
 
 use diskdash_analysis::eval::protected::Protected;
-use diskdash_analysis::rules::Env;
 use diskdash_analysis::stale::{self, BasisReason, StaleQuery, StaleRow, TimeBasis};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -95,7 +94,7 @@ fn paging(p: &StaleParams) -> (u32, u32) {
 pub fn stale_items(
     conn: &Connection,
     snap: &Snapshot,
-    env: &dyn Env,
+    protected: &Protected,
     p: &StaleParams,
 ) -> Result<StalePageView, ApiError> {
     let months = p.months.unwrap_or(DEFAULT_MONTHS);
@@ -104,14 +103,13 @@ pub fn stale_items(
     }
     let (limit, cursor) = paging(p);
     let now = unix_now();
-    let protected = Protected::new(env);
     let q = StaleQuery {
         basis: snap.time_basis,
         cutoff: now - (f64::from(months) * DAYS_PER_MONTH * 86_400.0) as i64,
         now,
         offset: cursor,
         limit,
-        protected: &protected,
+        protected,
     };
     let page = stale::stale(conn, &q).map_err(ApiError::internal)?;
     page_view(conn, page, View { snap, limit, cursor, months, with_score: false, now })
@@ -121,7 +119,7 @@ pub fn stale_items(
 pub fn old_large_files(
     conn: &Connection,
     snap: &Snapshot,
-    env: &dyn Env,
+    protected: &Protected,
     p: &StaleParams,
 ) -> Result<StalePageView, ApiError> {
     let floor_mib = p.floor_mib.unwrap_or(DEFAULT_FLOOR_MIB);
@@ -130,8 +128,7 @@ pub fn old_large_files(
     }
     let (limit, cursor) = paging(p);
     let now = unix_now();
-    let protected = Protected::new(env);
-    let page = stale::old_large(conn, snap.time_basis, now, floor_mib << 20, cursor, limit, &protected)
+    let page = stale::old_large(conn, snap.time_basis, now, floor_mib << 20, cursor, limit, protected)
         .map_err(ApiError::internal)?;
     let months = p.months.unwrap_or(DEFAULT_MONTHS);
     page_view(conn, page, View { snap, limit, cursor, months, with_score: true, now })

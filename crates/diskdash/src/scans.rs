@@ -71,6 +71,8 @@ pub struct ScanService {
     pub elevated: bool,
     /// Evaluates the cleanup rules on every scan that completes.
     pub cleanup: Option<Arc<CleanupService>>,
+    /// Verifies cleanup plans against every scan that completes.
+    pub plans: Option<Arc<crate::plans::PlanService>>,
     /// Reads the Windows last-access setting (`fsutil`); a function so tests can fix the answer.
     pub last_access: fn() -> Option<Setting>,
 }
@@ -278,6 +280,7 @@ impl ScanService {
             exclude: vec![paths::from_extended(&self.own.root().to_string_lossy())],
             windows_dir: std::env::var("SystemRoot").ok(),
             cleanup: self.cleanup.clone(),
+            plans: self.plans.clone(),
             completed: Mutex::new(Vec::new()),
         };
         let job_id = self.jobs.submit(Box::new(job)).map_err(ApiError::from)?;
@@ -297,6 +300,7 @@ pub struct ScanJob {
     pub exclude: Vec<String>,
     pub windows_dir: Option<String>,
     pub cleanup: Option<Arc<CleanupService>>,
+    pub plans: Option<Arc<crate::plans::PlanService>>,
     /// Snapshots that finished completely during this job.
     pub completed: Mutex<Vec<i64>>,
 }
@@ -454,6 +458,15 @@ impl Job for ScanJob {
             }
         });
 
+        // Compare the plans' items with the new scan (snapshot data only).
+        if let Some(plans) = &self.plans {
+            let ids = self.completed.lock().map(|d| d.clone()).unwrap_or_default();
+            if !ids.is_empty() && plans.has_items() {
+                if let Err(e) = plans.submit_verify(&ids, None) {
+                    tracing::warn!(error = %e, "cannot queue plan verification");
+                }
+            }
+        }
         // Suggestions for every scan that finished, even when another root failed or was cancelled.
         if let Some(cleanup) = &self.cleanup {
             let ids = self.completed.lock().map(|d| d.clone()).unwrap_or_default();
