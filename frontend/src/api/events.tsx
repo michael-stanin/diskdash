@@ -59,6 +59,10 @@ export function EventsProvider({ children, url = "/api/v1/events" }: { children:
           void qc.invalidateQueries({ queryKey: keys.jobs });
           if (job.kind === "scan") void qc.invalidateQueries({ queryKey: keys.snapshots });
           if (job.kind === "scan" || job.kind === "cleanup") void qc.invalidateQueries({ queryKey: cleanupKeys.all });
+          if (job.kind === "duplicates") void qc.invalidateQueries({ queryKey: ["duplicates"] });
+        }
+        if (job.kind === "duplicates" && (event.type === "job.queued" || event.type === "job.started")) {
+          void qc.invalidateQueries({ queryKey: ["duplicates"] });
         }
         if (job.kind === "cleanup" && (event.type === "job.queued" || event.type === "job.started")) {
           void qc.invalidateQueries({ queryKey: cleanupKeys.all });

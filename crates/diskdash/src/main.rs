@@ -56,6 +56,17 @@ async fn main() -> anyhow::Result<()> {
         registry: Arc::new(diskdash_inventory::apps::registry::WindowsRegistry),
         prefetch: Arc::new(diskdash::apps::NoHelper),
     });
+    if let Err(e) = diskdash::duplicates::DupService::reconcile(&db) {
+        tracing::warn!(error = %e, "duplicate run reconciliation failed");
+    }
+    let dups = Arc::new(diskdash::duplicates::DupService {
+        db: db.clone(),
+        own: own.clone(),
+        jobs: jobs.clone(),
+        inventory: inventory.clone(),
+        env: Arc::new(diskdash::cleanup_sys::SystemEnv),
+        source: Arc::new(diskdash::dup_sys::FsSource),
+    });
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -75,6 +86,7 @@ async fn main() -> anyhow::Result<()> {
         scans,
         cleanup,
         apps,
+        dups,
         own,
         launcher: Arc::new(diskdash::shell::ExplorerLauncher),
         assets: Arc::new(EmbeddedAssets),

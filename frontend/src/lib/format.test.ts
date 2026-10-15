@@ -20,6 +20,9 @@ describe("formatBytes", () => {
     [1.6 * 1024 ** 4, "1.6 TiB"],
     [33500744908, "31.2 GiB"],
     [1024 * 1024 - 1, "1 MiB"],
+    [200 * 1024 ** 2, "200 MiB"],
+    [100 * 1024 ** 3, "100 GiB"],
+    [500 * 1024 ** 3, "500 GiB"],
   ])("%d → %s", (bytes, expected) => {
     expect(formatBytes(bytes)).toBe(expected);
   });

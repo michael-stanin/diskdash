@@ -9,6 +9,8 @@ pub mod assets;
 pub mod cleanup;
 pub mod cleanup_sys;
 pub mod config;
+pub mod dup_sys;
+pub mod duplicates;
 pub mod error;
 pub mod events;
 pub mod inventory;

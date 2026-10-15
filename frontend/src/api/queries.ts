@@ -18,6 +18,11 @@ import type { Settings } from "./types/Settings";
 import type { SystemInfo } from "./types/SystemInfo";
 import type { AppsResponse } from "./types/AppsResponse";
 import type { StalePageView } from "./types/StalePageView";
+import type { DupGroupsPage } from "./types/DupGroupsPage";
+import type { DupRun } from "./types/DupRun";
+import type { NearView } from "./types/NearView";
+import type { SkipRow } from "./types/SkipRow";
+import type { SuggestResult } from "./types/SuggestResult";
 import type { CandidatePage } from "./types/CandidatePage";
 import type { CleanupOverview } from "./types/CleanupOverview";
 import type { Risk } from "./types/Risk";
@@ -390,5 +395,98 @@ export function useApps() {
     queryKey: ["apps"] as const,
     queryFn: ({ signal }) => api<AppsResponse>("/apps", { signal }),
     staleTime: 60_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Duplicates
+// ---------------------------------------------------------------------------
+
+export interface DupFilter {
+  drive?: string;
+  folder?: string;
+  category?: string;
+  sort?: "wasted" | "size" | "count";
+}
+
+function dupQuery(f: DupFilter, extra: Record<string, string | number> = {}): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries({ ...f, ...extra })) if (v !== undefined && v !== "") p.set(k, String(v));
+  return p.toString();
+}
+
+export function useDupStatus() {
+  return useQuery({
+    queryKey: ["duplicates", "status"] as const,
+    queryFn: ({ signal }) => api<DupRun | null>("/duplicates/status", { signal }),
+    staleTime: 5_000,
+  });
+}
+
+/** Duplicate groups, 20 per page, largest wasted space first. */
+export function useDupGroups(filter: DupFilter, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: ["duplicates", "groups", filter] as const,
+    queryFn: ({ pageParam, signal }) =>
+      api<DupGroupsPage>(`/duplicates/groups?${dupQuery(filter, { limit: 20, cursor: pageParam })}`, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
+    enabled,
+    staleTime: 10_000,
+  });
+}
+
+export function useDupNear(enabled: boolean) {
+  return useQuery({
+    queryKey: ["duplicates", "near"] as const,
+    queryFn: ({ signal }) => api<NearView[]>("/duplicates/near", { signal }),
+    enabled,
+  });
+}
+
+export function useDupSkips(reason: string | null) {
+  return useQuery({
+    queryKey: ["duplicates", "skips", reason] as const,
+    queryFn: ({ signal }) => api<SkipRow[]>(`/duplicates/skips?reason=${reason}`, { signal }),
+    enabled: reason !== null,
+  });
+}
+
+export interface DupStart {
+  snapshot_ids?: number[];
+  min_size_mib?: number;
+  near_duplicates?: boolean;
+}
+
+export function useStartDuplicates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: DupStart) => api<JobCreated>("/duplicates/runs", { method: "POST", body: req }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["duplicates"] }),
+  });
+}
+
+export interface SuggestBody {
+  rule: string;
+  value?: string;
+  group_id?: number;
+  drive?: string;
+  folder?: string;
+  category?: string;
+}
+
+export function useSuggestKeep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: SuggestBody) => api<SuggestResult>("/duplicates/suggestions", { method: "POST", body: b }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["duplicates", "groups"] }),
+  });
+}
+
+export function useClearSuggestions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<void>("/duplicates/suggestions", { method: "DELETE" }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["duplicates", "groups"] }),
   });
 }

@@ -109,6 +109,14 @@ fn fixture_full(
         registry: Arc::new(registry),
         prefetch: Arc::new(diskdash::apps::NoHelper),
     });
+    let dups = Arc::new(diskdash::duplicates::DupService {
+        db: db.clone(),
+        own: own.clone(),
+        jobs: jobs.clone(),
+        inventory: inventory.clone(),
+        env: Arc::new(diskdash_analysis::rules::MapEnv::default()),
+        source: Arc::new(diskdash::dup_sys::FsSource),
+    });
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -134,6 +142,7 @@ fn fixture_full(
         scans,
         cleanup,
         apps,
+        dups,
         own,
         launcher: launcher.clone(),
         assets: Arc::new(MemoryAssets(files)),
@@ -407,3 +416,4 @@ include!("include/scan_api.rs");
 include!("include/cleanup_api.rs");
 include!("include/stale_api.rs");
 include!("include/apps_api.rs");
+include!("include/dup_api.rs");

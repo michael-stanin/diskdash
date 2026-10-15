@@ -59,6 +59,21 @@ impl Fixture {
         p
     }
 
+    /// Like [`Fixture::file`], but one byte in the middle (at `offset`) differs.
+    pub fn tweaked(&self, rel: &str, size: u64, offset: u64) -> PathBuf {
+        let p = self.file(rel, size);
+        let mut f = OpenOptions::new().read(true).write(true).open(&p).expect("open fixture file");
+        f.seek(SeekFrom::Start(offset)).expect("seek");
+        f.write_all(&[0xFF]).expect("write");
+        p
+    }
+
+    /// Hold a fixture file open without any sharing (simulates a locked file). Drop to release.
+    pub fn lock_exclusive(&self, rel: &str) -> fs::File {
+        use std::os::windows::fs::OpenOptionsExt;
+        OpenOptions::new().read(true).share_mode(0).open(self.path(rel)).expect("lock fixture file")
+    }
+
     /// A file of zeros (compresses well).
     pub fn zeros(&self, rel: &str, size: u64) -> PathBuf {
         let p = self.path(rel);
@@ -263,6 +278,21 @@ pub fn assert_tree_unchanged(root: &Path, before: &[EntryState]) {
         } else {
             assert_eq!(b, a, "file changed: {}", b.path.display());
         }
+    }
+}
+
+/// Like [`assert_tree_unchanged`] but also ignores file last-access times.
+///
+/// For tests of features that read file contents: where Windows keeps last-access
+/// times up to date, reading a file updates it (accepted, see the duplicate
+/// finder design). Names, sizes, attributes, creation and modification times
+/// must still be identical.
+pub fn assert_contents_unchanged(root: &Path, before: &[EntryState]) {
+    let after = manifest(root);
+    assert_eq!(before.len(), after.len(), "number of entries changed");
+    let strip = |e: &EntryState| EntryState { accessed: None, ..e.clone() };
+    for (b, a) in before.iter().zip(&after) {
+        assert_eq!(strip(b), strip(a), "changed: {}", b.path.display());
     }
 }
 

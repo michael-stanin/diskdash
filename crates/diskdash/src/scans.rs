@@ -75,7 +75,7 @@ pub struct ScanService {
     pub last_access: fn() -> Option<Setting>,
 }
 
-fn drive_for<'a>(drives: &'a [Drive], root: &str) -> Option<&'a Drive> {
+pub(crate) fn drive_for<'a>(drives: &'a [Drive], root: &str) -> Option<&'a Drive> {
     let letter = root.get(0..2).map(|s| s.to_ascii_uppercase());
     drives
         .iter()

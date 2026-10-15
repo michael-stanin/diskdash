@@ -29,7 +29,9 @@ export function formatBytesParts(bytes: number): { value: string; unit: string }
 
 function trimZeros(value: number): string {
   const decimals = value >= 100 ? 0 : value >= 10 ? 1 : 2;
-  return value.toFixed(decimals).replace(/\.?0+$/, "");
+  const text = value.toFixed(decimals);
+  // Only trim fractional zeros: "200" must stay "200".
+  return text.includes(".") ? text.replace(/\.?0+$/, "") : text;
 }
 
 /** Exact count for tooltips: "123,456,789,012 bytes". */

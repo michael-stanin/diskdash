@@ -1,4 +1,4 @@
-import { CheckSquare, HardDrive, LayoutGrid, Package, Settings, Sparkles, type LucideIcon } from "lucide-react";
+import { CheckSquare, Copy, HardDrive, LayoutGrid, Package, Settings, Sparkles, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   to: string;
@@ -11,6 +11,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/drives", label: "Drives", icon: HardDrive },
   { to: "/recommendations", label: "Recommendations", icon: Sparkles },
   { to: "/apps", label: "Installed apps", icon: Package },
+  { to: "/duplicates", label: "Duplicates", icon: Copy },
   { to: "/plans", label: "Plans", icon: CheckSquare },
   { to: "/settings", label: "Settings", icon: Settings },
 ];

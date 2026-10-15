@@ -44,6 +44,7 @@ pub struct AppState {
     pub scans: Arc<ScanService>,
     pub cleanup: Arc<CleanupService>,
     pub apps: Arc<crate::apps::AppsService>,
+    pub dups: Arc<crate::duplicates::DupService>,
     pub own: OwnFiles,
     pub launcher: Arc<dyn Launcher>,
     pub assets: Arc<dyn AssetSource>,
@@ -80,6 +81,12 @@ pub fn build_router(state: AppState) -> Router {
         .route("/cleanup/evaluate", post(cleanup_evaluate))
         .route("/rules", get(list_rules))
         .route("/apps", get(list_apps))
+        .route("/duplicates/runs", post(start_duplicates))
+        .route("/duplicates/status", get(duplicates_status))
+        .route("/duplicates/groups", get(duplicates_groups))
+        .route("/duplicates/suggestions", post(duplicates_suggest).delete(duplicates_clear))
+        .route("/duplicates/near", get(duplicates_near))
+        .route("/duplicates/skips", get(duplicates_skips))
         .route("/snapshots/{id}/children", get(snapshot_children))
         .route("/snapshots/{id}/tree", get(snapshot_tree))
         .route("/shell/reveal", post(reveal))
@@ -575,4 +582,56 @@ async fn static_files(State(st): State<AppState>, uri: Uri) -> Response {
 async fn list_apps(State(st): State<AppState>) -> Result<Json<crate::apps::AppsResponse>, ApiError> {
     let svc = st.apps.clone();
     blocking(move || svc.list().map(Json)).await
+}
+
+async fn start_duplicates(
+    State(st): State<AppState>,
+    Json(req): Json<crate::duplicates::DupRequest>,
+) -> Result<Json<JobCreated>, ApiError> {
+    let svc = st.dups.clone();
+    blocking(move || Ok(Json(JobCreated { id: svc.start(&req)? }))).await
+}
+
+async fn duplicates_status(State(st): State<AppState>) -> Result<Json<Option<crate::duplicates::DupRun>>, ApiError> {
+    let svc = st.dups.clone();
+    blocking(move || svc.status().map(Json)).await
+}
+
+async fn duplicates_groups(
+    State(st): State<AppState>,
+    Query(f): Query<crate::duplicates::GroupFilter>,
+) -> Result<Json<crate::duplicates::DupGroupsPage>, ApiError> {
+    let svc = st.dups.clone();
+    blocking(move || svc.groups(&f).map(Json)).await
+}
+
+async fn duplicates_suggest(
+    State(st): State<AppState>,
+    Json(req): Json<crate::duplicates::SuggestRequest>,
+) -> Result<Json<crate::duplicates::SuggestResult>, ApiError> {
+    let svc = st.dups.clone();
+    blocking(move || svc.suggest(&req).map(Json)).await
+}
+
+async fn duplicates_clear(State(st): State<AppState>) -> Result<axum::http::StatusCode, ApiError> {
+    let svc = st.dups.clone();
+    blocking(move || svc.clear_suggestions().map(|()| axum::http::StatusCode::NO_CONTENT)).await
+}
+
+async fn duplicates_near(State(st): State<AppState>) -> Result<Json<Vec<crate::duplicates::NearView>>, ApiError> {
+    let svc = st.dups.clone();
+    blocking(move || svc.near().map(Json)).await
+}
+
+#[derive(Deserialize)]
+struct SkipQuery {
+    reason: Option<String>,
+}
+
+async fn duplicates_skips(
+    State(st): State<AppState>,
+    Query(q): Query<SkipQuery>,
+) -> Result<Json<Vec<crate::duplicates::SkipRow>>, ApiError> {
+    let svc = st.dups.clone();
+    blocking(move || svc.skips(q.reason.as_deref()).map(Json)).await
 }
