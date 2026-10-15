@@ -31,6 +31,18 @@ chart_children_per_level: number, hardlink_detection: HardlinkDefault,
  */
 hardlink_overrides: { [key in string]?: boolean }, 
 /**
+ * Tiering: data on an SSD untouched for this many months is cold.
+ */
+tiering_cold_months: number, 
+/**
+ * Tiering: smallest folder or file suggested for a move, in GiB.
+ */
+tiering_min_gib: number, 
+/**
+ * Tiering: data on an HDD modified within this many days is hot.
+ */
+tiering_hot_days: number, 
+/**
  * Folders that are never suggested by any analysis (Settings > Exclusions).
  */
 excluded_paths: Array<string>, 

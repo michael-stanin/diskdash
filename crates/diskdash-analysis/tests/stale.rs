@@ -60,7 +60,7 @@ fn protected() -> Protected {
 }
 
 fn query<'a>(basis: TimeBasis, months: i64, limit: u32, offset: u32, p: &'a Protected) -> StaleQuery<'a> {
-    StaleQuery { basis, cutoff: NOW - months * 30 * DAY, now: NOW, offset, limit, protected: p }
+    StaleQuery { basis, cutoff: NOW - months * 30 * DAY, now: NOW, offset, limit, protected: p, min_alloc: 0 }
 }
 
 /// C:\data with a fully stale folder, a mixed folder and a file without a timestamp.

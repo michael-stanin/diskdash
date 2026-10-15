@@ -93,6 +93,48 @@ pub fn lookup_alloc(conn: &Connection, root: &str, path: &str) -> rusqlite::Resu
     Ok(Some(alloc.max(0) as u64))
 }
 
+/// What a snapshot knows about one path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EntryRef {
+    pub id: i64,
+    pub is_dir: bool,
+    pub alloc: u64,
+    /// Newest modification time below it (folders) or its own (files), unix seconds.
+    pub newest_mtime: Option<i64>,
+}
+
+/// Find `path` in a snapshot by walking names from the root.
+pub fn lookup_entry(conn: &Connection, root: &str, path: &str) -> rusqlite::Result<Option<EntryRef>> {
+    if !within_root(root, path) {
+        return Ok(None);
+    }
+    let root_trim = root.trim_end_matches('\\');
+    let rest = &path[root_trim.len()..];
+    let mut id = 0i64;
+    for seg in rest.split('\\').filter(|s| !s.is_empty()) {
+        let next: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM entries WHERE parent_id = ?1 AND name_lower = ?2 AND id != 0 LIMIT 1",
+                params![id, seg.to_lowercase()],
+                |r| r.get(0),
+            )
+            .optional()?;
+        match next {
+            Some(i) => id = i,
+            None => return Ok(None),
+        }
+    }
+    conn.query_row("SELECT id, kind, alloc, coalesce(max_mtime, mtime) FROM entries WHERE id = ?1", [id], |r| {
+        Ok(EntryRef {
+            id: r.get(0)?,
+            is_dir: r.get::<_, i64>(1)? == 1,
+            alloc: r.get::<_, i64>(2)?.max(0) as u64,
+            newest_mtime: r.get(3)?,
+        })
+    })
+    .optional()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

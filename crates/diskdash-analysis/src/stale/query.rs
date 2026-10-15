@@ -50,6 +50,8 @@ pub struct StaleQuery<'a> {
     pub offset: u32,
     pub limit: u32,
     pub protected: &'a Protected,
+    /// Smallest allocated size listed (0 = no minimum).
+    pub min_alloc: u64,
 }
 
 fn join(dir: &str, name: &str) -> String {
@@ -70,7 +72,7 @@ pub fn stale(conn: &Connection, q: &StaleQuery<'_>) -> rusqlite::Result<StalePag
     let sql = format!(
         "SELECT e.id, e.kind, e.alloc, {te}, coalesce(e.path, p.path), e.name
          FROM entries e LEFT JOIN entries p ON p.id = e.parent_id
-         WHERE e.id != 0 AND e.kind IN (0, 1) AND (e.flags & 2) = 0 AND e.alloc > 0
+         WHERE e.id != 0 AND e.kind IN (0, 1) AND (e.flags & 2) = 0 AND e.alloc > 0 AND e.alloc >= ?5
            AND {te} >= ?1 AND {te} < ?2
            AND (p.id = 0 OR NOT ({tp} >= ?1 AND {tp} < ?2))
          ORDER BY e.alloc DESC, e.id LIMIT ?3 OFFSET ?4"
@@ -80,7 +82,7 @@ pub fn stale(conn: &Connection, q: &StaleQuery<'_>) -> rusqlite::Result<StalePag
     let (mut accepted, mut sql_offset) = (0u32, 0u32);
     loop {
         let rows: Vec<(i64, i64, i64, i64, Option<String>, String)> = stmt
-            .query_map(params![MIN_VALID_TIME, q.cutoff, CHUNK, sql_offset], |r| {
+            .query_map(params![MIN_VALID_TIME, q.cutoff, CHUNK, sql_offset, q.min_alloc as i64], |r| {
                 Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?))
             })?
             .collect::<Result<_, _>>()?;

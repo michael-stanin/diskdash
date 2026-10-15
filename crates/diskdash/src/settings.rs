@@ -39,6 +39,12 @@ pub struct Settings {
     pub hardlink_detection: HardlinkDefault,
     /// Per-volume overrides, keyed by volume GUID path.
     pub hardlink_overrides: BTreeMap<String, bool>,
+    /// Tiering: data on an SSD untouched for this many months is cold.
+    pub tiering_cold_months: u32,
+    /// Tiering: smallest folder or file suggested for a move, in GiB.
+    pub tiering_min_gib: u32,
+    /// Tiering: data on an HDD modified within this many days is hot.
+    pub tiering_hot_days: u32,
     /// Folders that are never suggested by any analysis (Settings > Exclusions).
     pub excluded_paths: Vec<String>,
     /// Folders that are never suggested and never added to a plan, on top of the built-in list.
@@ -56,6 +62,9 @@ impl Default for Settings {
             chart_children_per_level: 20,
             hardlink_detection: HardlinkDefault::SystemVolume,
             hardlink_overrides: BTreeMap::new(),
+            tiering_cold_months: 12,
+            tiering_min_gib: 1,
+            tiering_hot_days: 30,
             excluded_paths: Vec::new(),
             protected_paths: Vec::new(),
         }
@@ -78,6 +87,9 @@ impl Settings {
         );
         range("low_space_floor_gib", self.low_space_floor_gib <= 1024, "must be between 0 and 1024 GiB");
         range("stale_months", (1..=120).contains(&self.stale_months), "must be between 1 and 120 months");
+        range("tiering_cold_months", (1..=120).contains(&self.tiering_cold_months), "must be between 1 and 120 months");
+        range("tiering_min_gib", (1..=10_000).contains(&self.tiering_min_gib), "must be between 1 and 10000 GiB");
+        range("tiering_hot_days", (1..=365).contains(&self.tiering_hot_days), "must be between 1 and 365 days");
         range("hdd_scan_concurrency", (1..=2).contains(&self.hdd_scan_concurrency), "must be 1 or 2");
         range("ssd_scan_concurrency", (1..=16).contains(&self.ssd_scan_concurrency), "must be between 1 and 16");
         range(

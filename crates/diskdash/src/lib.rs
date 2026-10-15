@@ -25,4 +25,5 @@ pub mod shell;
 pub mod snapshots;
 pub mod stale;
 pub mod system;
+pub mod tiering;
 pub mod time;

@@ -74,6 +74,15 @@ async fn main() -> anyhow::Result<()> {
         env: Arc::new(diskdash::cleanup_sys::SystemEnv),
         templates: diskdash_analysis::plans::Templates::builtin(),
     });
+    let tiering = Arc::new(diskdash::tiering::TieringService {
+        db: db.clone(),
+        own: own.clone(),
+        inventory: inventory.clone(),
+        env: Arc::new(diskdash::cleanup_sys::SystemEnv),
+        manifests: Arc::new(diskdash::tiering::DiskManifests),
+        registry: Arc::new(diskdash_inventory::apps::registry::WindowsRegistry),
+        templates: diskdash_analysis::plans::Templates::builtin(),
+    });
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -96,6 +105,7 @@ async fn main() -> anyhow::Result<()> {
         apps,
         dups,
         plans,
+        tiering,
         own,
         launcher: Arc::new(diskdash::shell::ExplorerLauncher),
         assets: Arc::new(EmbeddedAssets),

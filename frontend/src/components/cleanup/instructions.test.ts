@@ -8,6 +8,7 @@ describe("isCommand", () => {
       "vssadmin resize shadowstorage /for=C: /on=C: /maxsize=10GB",
       "npm install",
       "cargo clean",
+      'robocopy "C:\a" "D:\a" /E /COPY:DAT /DCOPY:T',
       'Optimize-VHD -Path "<path of the .vhdx>" -Mode Full',
       'select vdisk file="<path of the .vhdx>"',
       "C:\\Windows\\Temp",

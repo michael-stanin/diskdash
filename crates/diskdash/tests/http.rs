@@ -71,6 +71,8 @@ struct Fixture {
     router: Router,
     events: Arc<EventBus>,
     launcher: Arc<FakeLauncher>,
+    db: diskdash_store::Db,
+    own: OwnFiles,
 }
 
 fn fixture(dev: bool) -> Fixture {
@@ -87,13 +89,36 @@ fn fixture_full(
     env: diskdash_analysis::rules::MapEnv,
     registry: diskdash_inventory::apps::registry::FakeRegistry,
 ) -> Fixture {
+    fixture_parts(dev, env, registry, Box::new(RecordedSource), Arc::new(NoManifests))
+}
+
+/// Launcher manifests: none.
+struct NoManifests;
+impl diskdash_analysis::tiering::ManifestSource for NoManifests {
+    fn read_to_string(&self, _: &str) -> std::io::Result<String> {
+        Err(std::io::Error::new(std::io::ErrorKind::NotFound, "no manifests"))
+    }
+
+    fn list_files(&self, _: &str, _: &str, _: &str) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+fn fixture_parts(
+    dev: bool,
+    env: diskdash_analysis::rules::MapEnv,
+    registry: diskdash_inventory::apps::registry::FakeRegistry,
+    source: Box<dyn InventorySource>,
+    manifests: Arc<dyn diskdash_analysis::tiering::ManifestSource>,
+) -> Fixture {
+    let registry = Arc::new(registry);
     let tmp = tempfile::tempdir().unwrap();
     let dd = DataDir::at(tmp.path().join("dd"));
     let own = OwnFiles::new(&dd).unwrap();
     let db = open_catalog(&dd, &own).unwrap();
     let events = Arc::new(EventBus::new());
     let jobs = JobRunner::start(db.clone(), events.clone(), 2).unwrap();
-    let inventory = Arc::new(InventoryService::new(Box::new(RecordedSource), db.clone(), events.clone()));
+    let inventory = Arc::new(InventoryService::new(source, db.clone(), events.clone()));
     inventory.refresh().unwrap();
     let cleanup = Arc::new(diskdash::cleanup::CleanupService {
         db: db.clone(),
@@ -106,7 +131,7 @@ fn fixture_full(
     let apps = Arc::new(diskdash::apps::AppsService {
         db: db.clone(),
         own: own.clone(),
-        registry: Arc::new(registry),
+        registry: registry.clone(),
         prefetch: Arc::new(diskdash::apps::NoHelper),
     });
     let dups = Arc::new(diskdash::duplicates::DupService {
@@ -122,6 +147,15 @@ fn fixture_full(
         own: own.clone(),
         jobs: jobs.clone(),
         env: cleanup.env.clone(),
+        templates: diskdash_analysis::plans::Templates::builtin(),
+    });
+    let tiering = Arc::new(diskdash::tiering::TieringService {
+        db: db.clone(),
+        own: own.clone(),
+        inventory: inventory.clone(),
+        env: cleanup.env.clone(),
+        manifests,
+        registry: registry.clone(),
         templates: diskdash_analysis::plans::Templates::builtin(),
     });
     let scans = Arc::new(diskdash::scans::ScanService {
@@ -143,7 +177,7 @@ fn fixture_full(
     let launcher = Arc::new(FakeLauncher::default());
     let state = AppState {
         security: Arc::new(Security::with_token(PORT, TOKEN)),
-        db,
+        db: db.clone(),
         jobs,
         events: events.clone(),
         inventory,
@@ -152,14 +186,15 @@ fn fixture_full(
         apps,
         dups,
         plans,
-        own,
+        tiering,
+        own: own.clone(),
         launcher: launcher.clone(),
         assets: Arc::new(MemoryAssets(files)),
         elevation: Arc::new(NotElevated),
         data_dir: dd.root().to_path_buf(),
         dev,
     };
-    Fixture { _tmp: tmp, router: build_router(state), events, launcher }
+    Fixture { _tmp: tmp, router: build_router(state), events, launcher, db, own }
 }
 
 fn req(method: Method, path: &str) -> axum::http::request::Builder {
@@ -183,6 +218,7 @@ fn default_settings() -> serde_json::Value {
         "low_space_percent": 10.0, "low_space_floor_gib": 20, "stale_months": 12,
         "hdd_scan_concurrency": 1, "ssd_scan_concurrency": 4, "chart_children_per_level": 20,
         "hardlink_detection": "system-volume", "hardlink_overrides": {},
+        "tiering_cold_months": 12, "tiering_min_gib": 1, "tiering_hot_days": 30,
         "excluded_paths": [], "protected_paths": []
     })
 }
@@ -428,3 +464,4 @@ include!("include/stale_api.rs");
 include!("include/apps_api.rs");
 include!("include/dup_api.rs");
 include!("include/plans_api.rs");
+include!("include/tiering_api.rs");

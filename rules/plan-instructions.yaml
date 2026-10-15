@@ -32,3 +32,20 @@ templates:
     - "Copy it to the other drive. Run this yourself in a terminal (diskdash never runs it):"
     - "robocopy \"{dir}\" \"{destination}\" \"{name}\" /COPY:DAT"
     - "Check the copy in Explorer, then delete the original (it goes to the Recycle Bin)."
+
+  # Tiering: apps and games must be moved with their own tools, not by hand.
+  tier-steam:
+    - "This is a Steam game. Do not copy the folder yourself: Steam would lose track of it."
+    - "First add a Steam library on the other drive: Steam > Settings > Storage > the drive list > Add Drive ({destination_drive})."
+    - "Then in your Library right-click the game > Properties > Installed Files > Move install folder, and choose that library."
+    - "Steam copies the game, updates its records and removes the old copy for you."
+
+  tier-epic:
+    - "This is an Epic Games game. Do not copy the folder yourself: the launcher would lose track of it."
+    - "In the Epic Games Launcher, open your Library, click the three dots on the game and look for Move (newer launcher versions)."
+    - "If there is no Move option, uninstall the game and install it again, choosing a folder on {destination_drive}."
+
+  tier-app-install:
+    - "This folder is the install location of a program that Windows knows about. Moving it by hand would break the program."
+    - "Reinstall it to the other drive instead: open Settings > Apps > Installed apps (the button on the Installed apps page opens it), uninstall the program, then run its installer again and choose a folder on {destination_drive}."
+    - "diskdash does not suggest links or junctions for this."

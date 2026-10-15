@@ -57,6 +57,8 @@ impl Templates {
             None => (String::new(), path.clone()),
         };
         let destination = clean(ctx.destination.as_deref().unwrap_or("<destination>"));
+        let destination_drive =
+            destination.get(..2).filter(|d| d.ends_with(':')).unwrap_or("the other drive").to_string();
         self.map
             .get(key)
             .map(|lines| {
@@ -67,6 +69,7 @@ impl Templates {
                             .replace("{dir}", &dir)
                             .replace("{name}", &name)
                             .replace("{destination}", &destination)
+                            .replace("{destination_drive}", &destination_drive)
                     })
                     .collect()
             })
@@ -81,7 +84,16 @@ mod tests {
     #[test]
     fn builtin_templates_load_and_cover_every_kind() {
         let t = Templates::builtin();
-        for k in ["explorer-delete", "duplicate-remove", "stale-review", "manual-move-dir", "manual-move-file"] {
+        for k in [
+            "explorer-delete",
+            "duplicate-remove",
+            "stale-review",
+            "manual-move-dir",
+            "manual-move-file",
+            "tier-steam",
+            "tier-epic",
+            "tier-app-install",
+        ] {
             assert!(!t.render(k, &TemplateCtx::default()).is_empty(), "{k}");
         }
     }

@@ -10,4 +10,4 @@ pub mod verify;
 
 pub use export::{file_name, to_csv, to_txt, ExportItem};
 pub use templates::{TemplateCtx, Templates};
-pub use verify::{classify, lookup_alloc, within_root, Outcome, Verdict};
+pub use verify::{classify, lookup_alloc, lookup_entry, within_root, EntryRef, Outcome, Verdict};

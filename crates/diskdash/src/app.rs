@@ -46,6 +46,7 @@ pub struct AppState {
     pub apps: Arc<crate::apps::AppsService>,
     pub dups: Arc<crate::duplicates::DupService>,
     pub plans: Arc<crate::plans::PlanService>,
+    pub tiering: Arc<crate::tiering::TieringService>,
     pub own: OwnFiles,
     pub launcher: Arc<dyn Launcher>,
     pub assets: Arc<dyn AssetSource>,
@@ -82,6 +83,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/cleanup/evaluate", post(cleanup_evaluate))
         .route("/rules", get(list_rules))
         .route("/apps", get(list_apps))
+        .route("/tiering", get(tiering_suggestions))
+        .route("/tiering/planned", post(tiering_planned))
         .route("/plans", get(list_plans).post(create_plan))
         .route("/plans/{id}", get(get_plan).patch(rename_plan).delete(delete_plan))
         .route("/plans/{id}/items", post(add_plan_item))
@@ -739,4 +742,17 @@ async fn export_plan(
 async fn verify_plan(State(st): State<AppState>, Path(id): Path<i64>) -> Result<Json<JobCreated>, ApiError> {
     let svc = st.plans.clone();
     blocking(move || Ok(Json(JobCreated { id: svc.submit_verify(&[], Some(id))? }))).await
+}
+
+async fn tiering_suggestions(State(st): State<AppState>) -> Result<Json<crate::tiering::TieringResponse>, ApiError> {
+    let svc = st.tiering.clone();
+    blocking(move || svc.suggestions().map(Json)).await
+}
+
+async fn tiering_planned(
+    State(st): State<AppState>,
+    Json(req): Json<crate::tiering::PlannedRequest>,
+) -> Result<Json<crate::tiering::TieringResponse>, ApiError> {
+    let svc = st.tiering.clone();
+    blocking(move || svc.set_planned(&req).map(Json)).await
 }

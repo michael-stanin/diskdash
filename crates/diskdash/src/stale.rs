@@ -110,6 +110,7 @@ pub fn stale_items(
         offset: cursor,
         limit,
         protected,
+        min_alloc: 0,
     };
     let page = stale::stale(conn, &q).map_err(ApiError::internal)?;
     page_view(conn, page, View { snap, limit, cursor, months, with_score: false, now })

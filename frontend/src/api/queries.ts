@@ -27,6 +27,7 @@ import type { AddItemResult } from "./types/AddItemResult";
 import type { PlanItemView } from "./types/PlanItemView";
 import type { PlanSummary } from "./types/PlanSummary";
 import type { PlanView } from "./types/PlanView";
+import type { TieringResponse } from "./types/TieringResponse";
 import type { CandidatePage } from "./types/CandidatePage";
 import type { CleanupOverview } from "./types/CleanupOverview";
 import type { Risk } from "./types/Risk";
@@ -566,4 +567,25 @@ export function useRemovePlanItem() {
 
 export function useVerifyPlan() {
   return usePlanMutation((id: number) => api<JobCreated>(`/plans/${id}/verify`, { method: "POST" }));
+}
+
+// ---------------------------------------------------------------------------
+// Tiering
+// ---------------------------------------------------------------------------
+
+export function useTiering() {
+  return useQuery({
+    queryKey: ["tiering"] as const,
+    queryFn: ({ signal }) => api<TieringResponse>("/tiering", { signal }),
+    staleTime: 10_000,
+  });
+}
+
+/** Mark a move as planned (or not); the response carries the recomputed projections. */
+export function useSetPlanned() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { path: string; planned: boolean }) => api<TieringResponse>("/tiering/planned", { method: "POST", body: v }),
+    onSuccess: (data) => qc.setQueryData(["tiering"], data),
+  });
 }

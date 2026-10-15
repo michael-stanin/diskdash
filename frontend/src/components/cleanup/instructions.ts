@@ -20,6 +20,7 @@ const COMMAND_WORDS = new Set([
   "wsl",
   "cleanmgr",
   "fsutil",
+  "robocopy",
 ]);
 
 /**
