@@ -88,13 +88,15 @@ pub struct Snapshot {
     pub summarised: bool,
     #[ts(type = "number | null")]
     pub summary_depth: Option<u32>,
+    /// Why the directory walk was used instead of the MFT (or what a quick rescan did).
+    pub scan_note: Option<String>,
     #[serde(skip)]
     pub db_file: String,
 }
 
 const SNAP_COLS: &str = "id, root, volume_id, status, method, elevated, hardlinks, started_at, finished_at, resumed,
     file_count, dir_count, link_count, total_size, total_alloc, error_count, access_denied_count, link_unknown_count,
-    job_id, error, db_file, time_basis, time_basis_reason, pinned, detail_level, summary_depth";
+    job_id, error, db_file, time_basis, time_basis_reason, pinned, detail_level, summary_depth, scan_note";
 
 fn snap_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Snapshot> {
     let u = |i: usize| r.get::<_, i64>(i).map(|v| v.max(0) as u64);
@@ -125,6 +127,7 @@ fn snap_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Snapshot> {
         pinned: r.get::<_, i64>(23)? != 0,
         summarised: r.get::<_, String>(24)? == "summary",
         summary_depth: r.get::<_, Option<i64>>(25)?.map(|d| d.max(0) as u32),
+        scan_note: r.get(26)?,
     })
 }
 

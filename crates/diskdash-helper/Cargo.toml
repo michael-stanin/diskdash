@@ -1,0 +1,29 @@
+[package]
+name = "diskdash-helper"
+description = "Strictly read-only elevated helper for diskdash (MFT scan, USN journal, SMART counters, Prefetch times)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "diskdash_helper"
+path = "src/lib.rs"
+
+[[bin]]
+name = "diskdash-helper"
+path = "src/main.rs"
+
+[dependencies]
+diskdash-core.workspace = true
+diskdash-inventory.workspace = true
+postcard.workspace = true
+serde.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+windows.workspace = true
+
+[lints]
+workspace = true

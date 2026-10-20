@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { useDeleteSnapshot, usePinSnapshot, useResumeScan } from "@/api/queries";
 import type { Snapshot } from "@/api/types/Snapshot";
 import type { SnapshotStatus } from "@/api/types/SnapshotStatus";
+import { ModeBadge } from "@/components/scans/ScanMode";
 import { RelativeTime, SizeDisplay } from "@/components/SizeDisplay";
 import { EmptyState } from "@/components/States";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ export function SnapshotHistory({ snapshots, loading }: { snapshots?: Snapshot[]
               <span className="text-muted-foreground">
                 <RelativeTime date={s.started_at} />
               </span>
+              {s.status === "complete" && !s.summarised && <ModeBadge method={s.method} />}
               {s.summarised && (
                 <span
                   className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground-secondary"

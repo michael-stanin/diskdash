@@ -73,6 +73,7 @@ struct Fixture {
     launcher: Arc<FakeLauncher>,
     db: diskdash_store::Db,
     own: OwnFiles,
+    jobs: JobRunner,
 }
 
 fn fixture(dev: bool) -> Fixture {
@@ -111,6 +112,17 @@ fn fixture_parts(
     source: Box<dyn InventorySource>,
     manifests: Arc<dyn diskdash_analysis::tiering::ManifestSource>,
 ) -> Fixture {
+    fixture_with_helper(dev, env, registry, source, manifests, Arc::new(diskdash::helper::NoHelper))
+}
+
+fn fixture_with_helper(
+    dev: bool,
+    env: diskdash_analysis::rules::MapEnv,
+    registry: diskdash_inventory::apps::registry::FakeRegistry,
+    source: Box<dyn InventorySource>,
+    manifests: Arc<dyn diskdash_analysis::tiering::ManifestSource>,
+    helper_link: Arc<dyn diskdash::helper::HelperLink>,
+) -> Fixture {
     let registry = Arc::new(registry);
     let tmp = tempfile::tempdir().unwrap();
     let dd = DataDir::at(tmp.path().join("dd"));
@@ -118,6 +130,7 @@ fn fixture_parts(
     let db = open_catalog(&dd, &own).unwrap();
     let events = Arc::new(EventBus::new());
     let jobs = JobRunner::start(db.clone(), events.clone(), 2).unwrap();
+    let jobs_for_fixture = jobs.clone();
     let inventory = Arc::new(InventoryService::new(source, db.clone(), events.clone()));
     inventory.refresh().unwrap();
     let cleanup = Arc::new(diskdash::cleanup::CleanupService {
@@ -158,6 +171,7 @@ fn fixture_parts(
         registry: registry.clone(),
         templates: diskdash_analysis::plans::Templates::builtin(),
     });
+    let helper: Arc<dyn diskdash::helper::HelperLink> = helper_link;
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -167,6 +181,7 @@ fn fixture_parts(
         cleanup: Some(cleanup.clone()),
         plans: Some(plans.clone()),
         last_access: || Some(diskdash_analysis::stale::Setting::UserDisabled),
+        helper: helper.clone(),
     });
     let mut files = HashMap::new();
     files.insert(
@@ -187,6 +202,7 @@ fn fixture_parts(
         dups,
         plans,
         tiering,
+        helper,
         own: own.clone(),
         launcher: launcher.clone(),
         assets: Arc::new(MemoryAssets(files)),
@@ -194,7 +210,7 @@ fn fixture_parts(
         data_dir: dd.root().to_path_buf(),
         dev,
     };
-    Fixture { _tmp: tmp, router: build_router(state), events, launcher, db, own }
+    Fixture { _tmp: tmp, router: build_router(state), events, launcher, db, own, jobs: jobs_for_fixture }
 }
 
 fn req(method: Method, path: &str) -> axum::http::request::Builder {
@@ -466,3 +482,4 @@ include!("include/dup_api.rs");
 include!("include/plans_api.rs");
 include!("include/tiering_api.rs");
 include!("include/history_api.rs");
+include!("include/fast_scan_api.rs");

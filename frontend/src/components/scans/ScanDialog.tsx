@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { FolderSearch, ScanSearch } from "lucide-react";
 import { ApiError } from "@/api/client";
-import { useDrives, useStartScan } from "@/api/queries";
+import { useDrives, useScanModes, useStartScan } from "@/api/queries";
 import { MediaBadge } from "@/components/Badges";
 import { driveName, driveTitle } from "@/components/drives/DriveCard";
+import { ElevatedFeatures, ModeBadge } from "@/components/scans/ScanMode";
 import { SizeDisplay } from "@/components/SizeDisplay";
 import { EmptyState } from "@/components/States";
 import { useToast } from "@/components/Toast";
@@ -48,6 +49,7 @@ export function ScanDialogProvider({ children }: { children: ReactNode }) {
 function ScanForm({ preselect, onDone }: { preselect: string[]; onDone: () => void }) {
   const drives = useDrives();
   const start = useStartScan();
+  const modes = useScanModes();
   const { toast } = useToast();
   const [selected, setSelected] = useState<Set<string>>(new Set(preselect));
   const [folder, setFolder] = useState("");
@@ -89,6 +91,7 @@ function ScanForm({ preselect, onDone }: { preselect: string[]; onDone: () => vo
       }
     >
       <div className="flex flex-col gap-5">
+        <ElevatedFeatures />
         <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
           <legend className="mb-2 text-[13px] font-medium">Drives</legend>
           {drives.isPending ? (
@@ -99,11 +102,12 @@ function ScanForm({ preselect, onDone }: { preselect: string[]; onDone: () => vo
             drives.data.drives.map((d) => {
               const root = d.letters[0] ? `${d.letters[0]}:\\` : (d.mount_paths[0] ?? "");
               const checked = selected.has(root);
+              const mode = modes.data?.drives.find((m) => m.root.toLowerCase() === root.toLowerCase());
               return (
                 <label
                   key={d.id}
                   className={cn(
-                    "flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors",
+                    "flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-3.5 py-3 transition-colors",
                     checked ? "border-primary bg-primary-soft/50" : "border-border hover:bg-hover",
                   )}
                 >
@@ -120,6 +124,12 @@ function ScanForm({ preselect, onDone }: { preselect: string[]; onDone: () => vo
                     <SizeDisplay bytes={d.used} /> used
                   </span>
                   <MediaBadge media={d.media} />
+                  {mode && (
+                    <span className="flex basis-full flex-wrap items-center gap-2 pl-7 text-xs text-muted-foreground">
+                      <ModeBadge method={mode.mode} />
+                      {mode.reason && <span>{mode.reason}</span>}
+                    </span>
+                  )}
                 </label>
               );
             })
@@ -144,7 +154,9 @@ function ScanForm({ preselect, onDone }: { preselect: string[]; onDone: () => vo
               {folderError}
             </span>
           ) : (
-            <span className="text-xs text-muted-foreground">Hard disks are scanned one folder at a time to avoid slowing them down.</span>
+            <span className="text-xs text-muted-foreground">
+              A single folder is always scanned with the directory walk. Hard disks are read one folder at a time to avoid slowing them down.
+            </span>
           )}
           {otherError && (
             <span role="alert" className="text-xs text-danger">

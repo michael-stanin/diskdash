@@ -3,12 +3,17 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use diskdash_analysis::stale::{decide, Setting};
+use diskdash_core::ntfs::import::{import, ImportError, ImportOptions, Stage};
+use diskdash_core::ntfs::incremental::{quick_rescan, Changes};
+use diskdash_core::ntfs::usn::{JournalState, StoredUsn};
 use diskdash_core::paths;
 use diskdash_core::scan::{self, ScanOptions, ScanProgress, ScanStatus, ScanSummary};
+use diskdash_helper::proto::UsnOutcome;
 use diskdash_inventory::model::{Drive, MediaClass};
 use diskdash_store::{Db, OwnFiles};
 use rusqlite::params;
@@ -17,6 +22,7 @@ use ts_rs::TS;
 
 use crate::cleanup::CleanupService;
 use crate::error::ApiError;
+use crate::helper::HelperLink;
 use crate::inventory::InventoryService;
 use crate::jobs::{Job, JobContext, JobError, JobRunner};
 use crate::settings::{HardlinkDefault, Settings};
@@ -35,6 +41,33 @@ pub struct ScanRequest {
 pub struct StartedSnapshot {
     #[ts(type = "number")]
     pub id: i64,
+    pub root: String,
+    /// `walk`, `mft` or `mft-quick`.
+    pub method: String,
+    /// Why the walk is used instead of the fast scan, or what a quick rescan did.
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct ScanModeInfo {
+    pub root: String,
+    pub volume_id: String,
+    /// `mft` (fast scan) or `walk` (directory walk).
+    pub mode: String,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct ScanModes {
+    pub helper: crate::helper::HelperStatus,
+    pub drives: Vec<ScanModeInfo>,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct QuickRequest {
     pub root: String,
 }
 
@@ -61,6 +94,25 @@ pub struct ScanItem {
     pub resume: bool,
     /// Physical-disk group: roots on one disk run one after another.
     pub group: String,
+    pub mode: ItemMode,
+    pub note: Option<String>,
+}
+
+/// How an item is scanned.
+#[derive(Debug, Clone)]
+pub enum ItemMode {
+    Walk,
+    /// Read the MFT through the elevated helper.
+    Mft {
+        volume_id: String,
+    },
+    /// Previous snapshot plus the USN changes the helper returned.
+    Quick {
+        volume_id: String,
+        previous: PathBuf,
+        changes: Changes,
+        state: JournalState,
+    },
 }
 
 pub struct ScanService {
@@ -75,6 +127,8 @@ pub struct ScanService {
     pub plans: Option<Arc<crate::plans::PlanService>>,
     /// Reads the Windows last-access setting (`fsutil`); a function so tests can fix the answer.
     pub last_access: fn() -> Option<Setting>,
+    /// The elevated read-only helper (fast MFT scans, quick rescans).
+    pub helper: Arc<dyn HelperLink>,
 }
 
 pub(crate) fn drive_for<'a>(drives: &'a [Drive], root: &str) -> Option<&'a Drive> {
@@ -192,55 +246,195 @@ impl ScanService {
         }
     }
 
+    /// How `root` on drive `d` will be scanned, and why not by MFT when it is not.
+    pub fn plan_mode(&self, root: &str, d: &Drive) -> (ItemMode, Option<String>) {
+        if !is_drive_root(root) {
+            return (ItemMode::Walk, Some("MFT scan needs a whole drive, not a folder".into()));
+        }
+        if !d.filesystem.eq_ignore_ascii_case("NTFS") {
+            return (ItemMode::Walk, Some("MFT scan supports NTFS only".into()));
+        }
+        let status = self.helper.status();
+        if !status.running() {
+            return (ItemMode::Walk, Some(status.why_not()));
+        }
+        (ItemMode::Mft { volume_id: d.id.clone() }, None)
+    }
+
+    /// Scan mode of every drive, for the scan dialog.
+    pub fn modes(&self, settings: &Settings) -> ScanModes {
+        let drives = self.inventory.snapshot(settings).drives;
+        let list = drives
+            .iter()
+            .filter_map(|d| {
+                let letter = d.letters.first()?;
+                let root = format!("{letter}:\\");
+                let (mode, reason) = self.plan_mode(&root, d);
+                Some(ScanModeInfo {
+                    root,
+                    volume_id: d.id.clone(),
+                    mode: if matches!(mode, ItemMode::Walk) { "walk" } else { "mft" }.into(),
+                    reason,
+                })
+            })
+            .collect();
+        ScanModes { helper: self.helper.status(), drives: list }
+    }
+
+    /// Insert the catalog row and plan the file for one root.
+    fn create_item(
+        &self,
+        conn: &rusqlite::Connection,
+        root: &str,
+        d: &Drive,
+        settings: &Settings,
+        method: &str,
+        note: Option<&str>,
+    ) -> Result<ScanItem, ApiError> {
+        let hardlinks = hardlinks_for(settings, d);
+        let decision = decide((self.last_access)(), d.capacity);
+        conn.execute(
+            "INSERT INTO snapshots (root, volume_id, elevated, hardlinks, status, started_at, db_file, time_basis, time_basis_reason, method, scan_note)
+             VALUES (?1, ?2, ?3, ?4, 'running', ?5, '', ?6, ?7, ?8, ?9)",
+            params![
+                root,
+                d.id,
+                self.elevated,
+                if hardlinks { "detected" } else { "not_deduplicated" },
+                now_rfc3339(),
+                decision.basis.as_str(),
+                decision.reason.as_str(),
+                method,
+                note
+            ],
+        )
+        .map_err(ApiError::internal)?;
+        let id = conn.last_insert_rowid();
+        let rel = format!("snapshots/{id}.db");
+        let db_path =
+            self.own.prepare_db_path(&self.snapshots_dir().join(format!("{id}.db"))).map_err(ApiError::internal)?;
+        conn.execute("UPDATE snapshots SET db_file = ?2 WHERE id = ?1", params![id, rel])
+            .map_err(ApiError::internal)?;
+        let (group, threads) = group_and_threads(settings, d);
+        Ok(ScanItem {
+            snapshot_id: id,
+            root: root.to_string(),
+            db_path,
+            threads,
+            hardlinks,
+            expected: self.expected_bytes(root, d),
+            resume: false,
+            group,
+            mode: ItemMode::Walk,
+            note: note.map(str::to_string),
+        })
+    }
+
     pub fn start(&self, req: &ScanRequest, settings: &Settings) -> Result<ScanStarted, ApiError> {
+        self.start_with_note(req, settings, None)
+    }
+
+    /// `note` explains a fast scan that a quick rescan had to turn into a full one.
+    fn start_with_note(
+        &self,
+        req: &ScanRequest,
+        settings: &Settings,
+        note: Option<&str>,
+    ) -> Result<ScanStarted, ApiError> {
         let drives = self.inventory.snapshot(settings).drives;
         if drives.is_empty() {
             return Err(ApiError::Conflict("the drive list has not loaded yet; try again in a moment".into()));
         }
         let (roots, merged) = validate_roots(&req.roots, &drives)?;
         let conn = self.db.connect().map_err(ApiError::internal)?;
-        let setting = (self.last_access)();
-        let now = now_rfc3339();
         let mut items = Vec::new();
         let mut started = Vec::new();
         for (root, d) in &roots {
-            let hardlinks = hardlinks_for(settings, d);
-            let decision = decide(setting, d.capacity);
-            conn.execute(
-                "INSERT INTO snapshots (root, volume_id, elevated, hardlinks, status, started_at, db_file, time_basis, time_basis_reason)
-                 VALUES (?1, ?2, ?3, ?4, 'running', ?5, '', ?6, ?7)",
-                params![
-                    root,
-                    d.id,
-                    self.elevated,
-                    if hardlinks { "detected" } else { "not_deduplicated" },
-                    now,
-                    decision.basis.as_str(),
-                    decision.reason.as_str()
-                ],
-            )
-            .map_err(ApiError::internal)?;
-            let id = conn.last_insert_rowid();
-            let rel = format!("snapshots/{id}.db");
-            let db_path =
-                self.own.prepare_db_path(&self.snapshots_dir().join(format!("{id}.db"))).map_err(ApiError::internal)?;
-            conn.execute("UPDATE snapshots SET db_file = ?2 WHERE id = ?1", params![id, rel])
-                .map_err(ApiError::internal)?;
-            let (group, threads) = group_and_threads(settings, d);
-            items.push(ScanItem {
-                snapshot_id: id,
+            let (mode, reason) = self.plan_mode(root, d);
+            let (method, why) = match &mode {
+                ItemMode::Walk => ("walk", reason),
+                _ => ("mft", note.map(str::to_string)),
+            };
+            let mut item = self.create_item(&conn, root, d, settings, method, why.as_deref())?;
+            item.mode = mode;
+            started.push(StartedSnapshot {
+                id: item.snapshot_id,
                 root: root.clone(),
-                db_path,
-                threads,
-                hardlinks,
-                expected: self.expected_bytes(root, d),
-                resume: false,
-                group,
+                method: method.into(),
+                note: why,
             });
-            started.push(StartedSnapshot { id, root: root.clone() });
+            items.push(item);
         }
         let job_id = self.submit(items, &conn, settings)?;
         Ok(ScanStarted { job_id, snapshots: started, merged })
+    }
+
+    /// Manual "Quick rescan": read the USN journal from where the last fast scan stopped and
+    /// re-read only what changed. Falls back to a full fast scan, saying why.
+    pub fn quick(&self, req: &QuickRequest, settings: &Settings) -> Result<ScanStarted, ApiError> {
+        let drives = self.inventory.snapshot(settings).drives;
+        if drives.is_empty() {
+            return Err(ApiError::Conflict("the drive list has not loaded yet; try again in a moment".into()));
+        }
+        let (roots, _) = validate_roots(std::slice::from_ref(&req.root), &drives)?;
+        let Some((root, d)) = roots.into_iter().next() else {
+            return Err(ApiError::BadRequest("choose a drive".into()));
+        };
+        let (mode, reason) = self.plan_mode(&root, &d);
+        let ItemMode::Mft { volume_id } = mode else {
+            return Err(ApiError::Conflict(format!("Quick rescan is not available: {}", reason.unwrap_or_default())));
+        };
+        let full = |why: String| -> Result<ScanStarted, ApiError> {
+            self.start_with_note(&ScanRequest { roots: vec![root.clone()] }, settings, Some(&why))
+        };
+        let conn = self.db.connect().map_err(ApiError::internal)?;
+        let prev = snapshots::list(
+            &conn,
+            &snapshots::ListFilter { root: Some(root.clone()), volume_id: None, limit: Some(20) },
+        )
+        .map_err(ApiError::internal)?
+        .into_iter()
+        .find(|s| s.status == SnapshotStatus::Complete && s.method.starts_with("mft"));
+        let stored: Option<(i64, i64, i64)> = prev.as_ref().and_then(|p| {
+            let _ = p;
+            conn.query_row(
+                "SELECT journal_id, next_usn, snapshot_id FROM volume_usn_state WHERE volume_guid = ?1",
+                [&volume_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .ok()
+        });
+        let no_prior = diskdash_core::ntfs::usn::FullReason::NoPriorState.message();
+        let (Some(prev), Some((journal_id, next_usn, state_snapshot))) = (prev, stored) else {
+            return full(no_prior);
+        };
+        if state_snapshot != prev.id {
+            return full(no_prior);
+        }
+        if prev.summarised {
+            return full("the earlier fast scan was reduced to folder totals; running a full scan".into());
+        }
+        let total = prev.file_count + prev.dir_count + prev.link_count;
+        let outcome = self
+            .helper
+            .usn_read(&volume_id, Some(StoredUsn { journal_id: journal_id as u64, next_usn }), total)
+            .map_err(|e| ApiError::Conflict(format!("could not read the change journal: {e}")))?;
+        match outcome {
+            UsnOutcome::Full { reason, .. } => full(reason),
+            UsnOutcome::Changes { changes, state } => {
+                let mut item = self.create_item(&conn, &root, &d, settings, "mft-quick", None)?;
+                item.mode =
+                    ItemMode::Quick { volume_id, previous: self.own.root().join(&prev.db_file), changes, state };
+                let started = vec![StartedSnapshot {
+                    id: item.snapshot_id,
+                    root: root.clone(),
+                    method: "mft-quick".into(),
+                    note: None,
+                }];
+                let job_id = self.submit(vec![item], &conn, settings)?;
+                Ok(ScanStarted { job_id, snapshots: started, merged: Vec::new() })
+            }
+        }
     }
 
     pub fn resume(&self, snapshot_id: i64, settings: &Settings) -> Result<u64, ApiError> {
@@ -268,6 +462,8 @@ impl ScanService {
             expected: self.expected_bytes(&snap.root, &d),
             resume: true,
             group,
+            mode: ItemMode::Walk,
+            note: None,
         };
         self.submit(vec![item], &conn, settings)
     }
@@ -281,6 +477,8 @@ impl ScanService {
             windows_dir: std::env::var("SystemRoot").ok(),
             cleanup: self.cleanup.clone(),
             plans: self.plans.clone(),
+            helper: self.helper.clone(),
+            own_files: self.own.clone(),
             history: Some(HistoryHooks {
                 own: self.own.clone(),
                 inventory: self.inventory.clone(),
@@ -315,6 +513,8 @@ pub struct ScanJob {
     pub windows_dir: Option<String>,
     pub cleanup: Option<Arc<CleanupService>>,
     pub plans: Option<Arc<crate::plans::PlanService>>,
+    pub helper: Arc<dyn HelperLink>,
+    pub own_files: OwnFiles,
     /// Free-space sample and old-scan clean-up after scans.
     pub history: Option<HistoryHooks>,
     /// Snapshots that finished completely during this job.
@@ -327,9 +527,171 @@ struct ItemState {
     done_bytes: Option<u64>,
     running: bool,
     error: Option<String>,
+    /// Reading the MFT (not the directory walk) right now.
+    mft: bool,
+}
+
+/// Why a fast scan did not happen, or a real failure.
+enum MftFail {
+    /// Use the directory walk instead, and say why.
+    Fallback(String),
+    Fatal(scan::ScanError),
 }
 
 impl ScanJob {
+    /// Scan one item, preferring the fast path when the plan says so and falling back to the walk.
+    fn run_item(
+        &self,
+        item: &ScanItem,
+        ctx: &JobContext,
+        state: &Mutex<ItemState>,
+    ) -> Result<ScanSummary, scan::ScanError> {
+        let mut mode = item.mode.clone();
+        loop {
+            match &mode {
+                ItemMode::Walk => return self.walk(item, ctx, state),
+                ItemMode::Mft { .. } | ItemMode::Quick { .. } => match self.run_mft(item, &mode, ctx, state) {
+                    Ok(summary) => return Ok(summary),
+                    Err(MftFail::Fatal(e)) => return Err(e),
+                    Err(MftFail::Fallback(reason)) => {
+                        tracing::warn!(root = %item.root, %reason, "fast scan not possible");
+                        if let Ok(mut st) = state.lock() {
+                            st.mft = false;
+                        }
+                        // A failed quick rescan retries as a full fast scan; a failed fast scan walks.
+                        let (next, method) = match &mode {
+                            ItemMode::Quick { volume_id, .. } => {
+                                (ItemMode::Mft { volume_id: volume_id.clone() }, "mft")
+                            }
+                            _ => (ItemMode::Walk, "walk"),
+                        };
+                        self.set_method(item.snapshot_id, method, &reason);
+                        mode = next;
+                    }
+                },
+            }
+        }
+    }
+
+    fn set_method(&self, snapshot_id: i64, method: &str, note: &str) {
+        if let Ok(conn) = self.db.connect() {
+            let _ = conn.execute(
+                "UPDATE snapshots SET method = ?2, scan_note = ?3 WHERE id = ?1",
+                params![snapshot_id, method, note],
+            );
+        }
+    }
+
+    fn walk(
+        &self,
+        item: &ScanItem,
+        ctx: &JobContext,
+        state: &Mutex<ItemState>,
+    ) -> Result<ScanSummary, scan::ScanError> {
+        let opts = ScanOptions {
+            root: PathBuf::from(&item.root),
+            db_path: item.db_path.clone(),
+            threads: item.threads,
+            detect_hardlinks: item.hardlinks,
+            exclude: self.exclude.clone(),
+            resume: item.resume,
+            windows_dir: self.windows_dir.clone(),
+        };
+        scan::scan(opts).and_then(|handle| {
+            if let Ok(mut st) = state.lock() {
+                st.running = true;
+            }
+            while !handle.is_finished() {
+                if ctx.is_cancelled() {
+                    handle.cancel();
+                }
+                if let Ok(mut st) = state.lock() {
+                    st.progress = handle.progress();
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            handle.join()
+        })
+    }
+
+    fn run_mft(
+        &self,
+        item: &ScanItem,
+        mode: &ItemMode,
+        ctx: &JobContext,
+        state: &Mutex<ItemState>,
+    ) -> Result<ScanSummary, MftFail> {
+        if let Ok(mut st) = state.lock() {
+            st.running = true;
+            st.mft = true;
+        }
+        let cancel = AtomicBool::new(false);
+        let opts = ImportOptions {
+            root: item.root.clone(),
+            db_path: item.db_path.clone(),
+            windows_dir: self.windows_dir.clone(),
+            max_bad_fraction: 0.01,
+        };
+        let mut progress = |stage: Stage, n: u64| {
+            if ctx.is_cancelled() {
+                cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+            if let Ok(mut st) = state.lock() {
+                st.progress.files = n;
+                st.progress.current_dir = match stage {
+                    Stage::Indexing => "indexing".into(),
+                    Stage::Writing => "writing the snapshot".into(),
+                };
+            }
+        };
+        let (result, journal, volume_id) = match mode {
+            ItemMode::Mft { volume_id } => {
+                let mut scan = self
+                    .helper
+                    .open_scan(volume_id)
+                    .map_err(|e| MftFail::Fallback(format!("the volume could not be read through the helper: {e}")))?;
+                let r = import(scan.source(), &opts, &cancel, &mut progress);
+                (r, scan.journal(), volume_id.clone())
+            }
+            ItemMode::Quick { volume_id, previous, changes, state: journal } => {
+                let r = quick_rescan(previous, changes.clone(), &opts, &cancel, &mut progress);
+                (r, Some(*journal), volume_id.clone())
+            }
+            ItemMode::Walk => return Err(MftFail::Fatal(scan::ScanError::Db("not a fast scan".into()))),
+        };
+        match result {
+            Ok(summary) => {
+                if let Some(j) = journal {
+                    self.store_usn(&volume_id, &j, item.snapshot_id);
+                }
+                Ok(summary)
+            }
+            Err(e) => {
+                // Whatever was written is useless: the next attempt starts from an empty file.
+                let _ = crate::snapshots::remove_snapshot_files(&self.own_files, &item.db_path);
+                match e {
+                    ImportError::Cancelled => Err(MftFail::Fatal(scan::ScanError::Db("cancelled".into()))),
+                    ImportError::Db(m) => Err(MftFail::Fatal(scan::ScanError::Db(m))),
+                    ImportError::Mft(m) => Err(MftFail::Fallback(m.to_string())),
+                }
+            }
+        }
+    }
+
+    /// Remember where the change journal stood, so the next Quick rescan can start there.
+    fn store_usn(&self, volume_id: &str, j: &JournalState, snapshot_id: i64) {
+        let Ok(conn) = self.db.connect() else { return };
+        let r = conn.execute(
+            "INSERT INTO volume_usn_state (volume_guid, journal_id, next_usn, snapshot_id, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(volume_guid) DO UPDATE SET journal_id = excluded.journal_id, next_usn = excluded.next_usn,
+               snapshot_id = excluded.snapshot_id, updated_at = excluded.updated_at",
+            params![volume_id, j.journal_id as i64, j.next_usn, snapshot_id, now_rfc3339()],
+        );
+        if let Err(e) = r {
+            tracing::warn!(error = %e, "cannot store the USN position");
+        }
+    }
+
     fn record(&self, item: &ScanItem, result: &Result<ScanSummary, scan::ScanError>, cancelled: bool) {
         let Ok(conn) = self.db.connect() else { return };
         let now = now_rfc3339();
@@ -415,30 +777,7 @@ impl Job for ScanJob {
                         if ctx.is_cancelled() {
                             break;
                         }
-                        let opts = ScanOptions {
-                            root: PathBuf::from(&item.root),
-                            db_path: item.db_path.clone(),
-                            threads: item.threads,
-                            detect_hardlinks: item.hardlinks,
-                            exclude: this.exclude.clone(),
-                            resume: item.resume,
-                            windows_dir: this.windows_dir.clone(),
-                        };
-                        let result = scan::scan(opts).and_then(|handle| {
-                            if let Ok(mut st) = states[i].lock() {
-                                st.running = true;
-                            }
-                            while !handle.is_finished() {
-                                if ctx.is_cancelled() {
-                                    handle.cancel();
-                                }
-                                if let Ok(mut st) = states[i].lock() {
-                                    st.progress = handle.progress();
-                                }
-                                std::thread::sleep(Duration::from_millis(100));
-                            }
-                            handle.join()
-                        });
+                        let result = this.run_item(item, ctx, &states[i]);
                         this.record(item, &result, ctx.is_cancelled());
                         if let Ok(mut st) = states[i].lock() {
                             st.running = false;
@@ -459,12 +798,19 @@ impl Job for ScanJob {
                         bytes += st.done_bytes.unwrap_or(st.progress.bytes);
                         if st.running && phase.is_none() {
                             let p = &st.progress;
-                            phase = Some(format!(
-                                "Scanning {} · {} files · {}",
-                                self.items[i].root,
-                                p.files,
-                                p.current_dir.rsplit('\\').next().unwrap_or("")
-                            ));
+                            phase = Some(if st.mft {
+                                format!(
+                                    "Reading the MFT of {} · {} records · {}",
+                                    self.items[i].root, p.files, p.current_dir
+                                )
+                            } else {
+                                format!(
+                                    "Scanning {} · {} files · {}",
+                                    self.items[i].root,
+                                    p.files,
+                                    p.current_dir.rsplit('\\').next().unwrap_or("")
+                                )
+                            });
                         }
                     }
                 }

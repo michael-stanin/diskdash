@@ -1,0 +1,29 @@
+[package]
+name = "diskdash-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+diskdash-core = { path = "../crates/diskdash-core" }
+
+# Not part of the main workspace: fuzzing needs nightly (`cargo +nightly fuzz run parse_record`).
+[workspace]
+
+[[bin]]
+name = "parse_record"
+path = "fuzz_targets/parse_record.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decode_runs"
+path = "fuzz_targets/decode_runs.rs"
+test = false
+doc = false
+bench = false

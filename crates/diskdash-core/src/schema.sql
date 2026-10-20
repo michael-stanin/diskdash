@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS entries (
     max_mtime    INTEGER,
     max_atime    INTEGER,
     last_desc_id INTEGER,
-    top_category INTEGER                    -- directories: category with the most bytes below
+    top_category INTEGER,                   -- directories: category with the most bytes below
+    frn          INTEGER                    -- MFT record number (MFT scans only)
 );
 
 CREATE TABLE IF NOT EXISTS errors (

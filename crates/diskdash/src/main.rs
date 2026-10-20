@@ -83,6 +83,7 @@ async fn main() -> anyhow::Result<()> {
         registry: Arc::new(diskdash_inventory::apps::registry::WindowsRegistry),
         templates: diskdash_analysis::plans::Templates::builtin(),
     });
+    let helper: Arc<dyn diskdash::helper::HelperLink> = diskdash::helper::ProcessHelper::beside_current_exe();
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -92,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
         cleanup: Some(cleanup.clone()),
         plans: Some(plans.clone()),
         last_access: diskdash_analysis::stale::query_setting,
+        helper: helper.clone(),
     });
 
     let state = AppState {
@@ -106,6 +108,7 @@ async fn main() -> anyhow::Result<()> {
         dups,
         plans,
         tiering,
+        helper,
         own,
         launcher: Arc::new(diskdash::shell::ExplorerLauncher),
         assets: Arc::new(EmbeddedAssets),

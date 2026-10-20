@@ -23,4 +23,8 @@ pinned: boolean,
 /**
  * True once the scan was reduced to folder totals; its files can no longer be browsed.
  */
-summarised: boolean, summary_depth: number | null, };
+summarised: boolean, summary_depth: number | null, 
+/**
+ * Why the directory walk was used instead of the MFT (or what a quick rescan did).
+ */
+scan_note: string | null, };

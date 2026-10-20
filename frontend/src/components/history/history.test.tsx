@@ -62,6 +62,7 @@ const snap = (id: number, over: Partial<Snapshot> = {}): Snapshot => ({
   pinned: false,
   summarised: false,
   summary_depth: null,
+  scan_note: null,
   ...over,
 });
 

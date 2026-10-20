@@ -11,6 +11,7 @@ anyhow.workspace = true
 axum.workspace = true
 diskdash-analysis.workspace = true
 diskdash-core.workspace = true
+diskdash-helper.workspace = true
 diskdash-inventory.workspace = true
 diskdash-store.workspace = true
 futures.workspace = true

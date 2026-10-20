@@ -40,6 +40,8 @@ pub struct Row {
     pub link_target: Option<String>,
     pub path: Option<String>,
     pub dir: Option<DirTotals>,
+    /// MFT record number (MFT scans only).
+    pub frn: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -104,6 +106,11 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     conn.pragma_update(None, "temp_store", "MEMORY")?;
     conn.pragma_update(None, "cache_size", -64_000)?;
     conn.execute_batch(SCHEMA)?;
+    // Snapshots created before MFT scans existed lack the record-number column.
+    let has_frn: bool = conn.prepare("SELECT 1 FROM pragma_table_info('entries') WHERE name = 'frn'")?.exists([])?;
+    if !has_frn {
+        conn.execute_batch("ALTER TABLE entries ADD COLUMN frn INTEGER")?;
+    }
     Ok(conn)
 }
 
@@ -113,9 +120,9 @@ pub fn insert_rows(conn: &mut Connection, rows: &[Row]) -> rusqlite::Result<()> 
         let mut stmt = tx.prepare_cached(
             "INSERT OR REPLACE INTO entries (id, parent_id, name, name_lower, kind, depth, size, alloc, ctime, mtime, atime,
               attrs, reparse_tag, file_id, nlink, hardlink_of, ext, category, flags, link_target, path,
-              file_count, dir_count, max_mtime, max_atime, last_desc_id, top_category)
+              file_count, dir_count, max_mtime, max_atime, last_desc_id, top_category, frn)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21,
-                     ?22, ?23, ?24, ?25, ?26, ?27)",
+                     ?22, ?23, ?24, ?25, ?26, ?27, ?28)",
         )?;
         for r in rows {
             let d = r.dir;
@@ -147,6 +154,7 @@ pub fn insert_rows(conn: &mut Connection, rows: &[Row]) -> rusqlite::Result<()> 
                 d.map(|d| d.max_atime),
                 d.map(|d| d.last_desc_id),
                 d.and_then(|d| d.top_category()).map(i64::from),
+                r.frn.map(|f| f as i64),
             ])?;
         }
     }

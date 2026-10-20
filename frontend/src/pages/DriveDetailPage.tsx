@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { HardDrive, ScanSearch } from "lucide-react";
 import { PageHeader } from "@/app/PageHeader";
 import { ApiError } from "@/api/client";
-import { useDrive, useDrives, useSettings, useSnapshots } from "@/api/queries";
+import { useDrive, useDrives, useScanModes, useSettings, useSnapshots } from "@/api/queries";
 import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { SnapshotSummary } from "@/components/usage/SnapshotSummary";
@@ -123,6 +123,7 @@ export function DriveDetailPage() {
   const settings = useSettings();
   const snapshots = useSnapshots(id);
   const scanDialog = useScanDialog();
+  const modes = useScanModes();
   const d = drive.data;
   const root = d?.letters[0] ? `${d.letters[0]}:\\` : d?.mount_paths[0];
   const latestComplete = snapshots.data?.find((s) => s.status === "complete" && s.root === root);
@@ -192,7 +193,12 @@ export function DriveDetailPage() {
               <Skeleton className="h-[440px] w-full rounded-card" />
             ) : latestComplete ? (
               <>
-                <SnapshotSummary snapshot={latestComplete} onRescan={scan} scanning={scanning} />
+                <SnapshotSummary
+                  snapshot={latestComplete}
+                  onRescan={scan}
+                  scanning={scanning}
+                  quickRescanRoot={modes.data?.helper.state === "running" && latestComplete.method.startsWith("mft") ? root : undefined}
+                />
                 <LazyUsageExplorer snapshot={latestComplete} />
               </>
             ) : (

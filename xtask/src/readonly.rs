@@ -60,6 +60,16 @@ pub const DENY_LIST: &[&str] = &[
     "FSCTL_CREATE_USN_JOURNAL",
 ];
 
+/// The one file allowed to say `GENERIC_WRITE`: the client end of the helper's own named pipe, which is
+/// an IPC channel and cannot be used without write access. Nothing else is exempt, in that file or any other.
+pub const PIPE_CLIENT_FILE: &str = "diskdash-helper/src/pipe_client.rs";
+pub const PIPE_CLIENT_ALLOWED: &[&str] = &["GENERIC_WRITE"];
+
+fn exempt(file: &Path, ident: &str) -> bool {
+    let p = file.to_string_lossy().replace('\\', "/");
+    p.ends_with(PIPE_CLIENT_FILE) && PIPE_CLIENT_ALLOWED.contains(&ident)
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Violation {
     pub file: PathBuf,
@@ -90,7 +100,7 @@ pub fn check_tree(crates_dir: &Path) -> std::io::Result<Vec<Violation>> {
                 stack.push(path);
             } else if name.ends_with(".rs") {
                 let src = fs::read_to_string(&path)?;
-                out.extend(check_source(&path, &src));
+                out.extend(check_source(&path, &src).into_iter().filter(|v| !exempt(&v.file, &v.ident)));
             }
         }
     }
@@ -238,6 +248,17 @@ mod tests {
         let src = "/*\n\n*/\nWriteFile(h);\n";
         let v = check_source(Path::new("x.rs"), src);
         assert_eq!(v[0].line, 4);
+    }
+
+    #[test]
+    fn only_the_pipe_client_may_ask_for_write_access_on_a_handle() {
+        assert!(exempt(Path::new("crates/diskdash-helper/src/pipe_client.rs"), "GENERIC_WRITE"));
+        assert!(exempt(Path::new(r"D:\p\crates\diskdash-helper\src\pipe_client.rs"), "GENERIC_WRITE"));
+        // Not in other files, and not for any other identifier, even in that file.
+        assert!(!exempt(Path::new("crates/diskdash/src/anything.rs"), "GENERIC_WRITE"));
+        assert!(!exempt(Path::new("crates/diskdash-helper/src/win.rs"), "GENERIC_WRITE"));
+        assert!(!exempt(Path::new("crates/diskdash-helper/src/pipe_client.rs"), "DeleteFileW"));
+        assert!(!exempt(Path::new("crates/diskdash-helper/src/pipe_client.rs"), "FILE_WRITE_DATA"));
     }
 
     #[test]

@@ -47,6 +47,7 @@ pub struct AppState {
     pub dups: Arc<crate::duplicates::DupService>,
     pub plans: Arc<crate::plans::PlanService>,
     pub tiering: Arc<crate::tiering::TieringService>,
+    pub helper: Arc<dyn crate::helper::HelperLink>,
     pub own: OwnFiles,
     pub launcher: Arc<dyn Launcher>,
     pub assets: Arc<dyn AssetSource>,
@@ -71,6 +72,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/drives/refresh", post(refresh_drives))
         .route("/drives/{id}", get(get_drive))
         .route("/scans", post(start_scan))
+        .route("/scans/modes", get(scan_modes))
+        .route("/scans/quick", post(quick_scan))
+        .route("/helper", get(helper_status))
+        .route("/helper/enable", post(helper_enable))
         .route("/snapshots", get(list_snapshots))
         .route("/snapshots/latest", get(latest_snapshots))
         .route("/snapshots/{id}", get(get_snapshot).delete(delete_snapshot))
@@ -750,6 +755,36 @@ async fn export_plan(
 async fn verify_plan(State(st): State<AppState>, Path(id): Path<i64>) -> Result<Json<JobCreated>, ApiError> {
     let svc = st.plans.clone();
     blocking(move || Ok(Json(JobCreated { id: svc.submit_verify(&[], Some(id))? }))).await
+}
+
+async fn scan_modes(State(st): State<AppState>) -> Result<Json<crate::scans::ScanModes>, ApiError> {
+    let settings = load_settings(&st.db).await?;
+    let scans = st.scans.clone();
+    blocking(move || Ok(Json(scans.modes(&settings)))).await
+}
+
+async fn quick_scan(
+    State(st): State<AppState>,
+    Json(req): Json<crate::scans::QuickRequest>,
+) -> Result<Json<crate::scans::ScanStarted>, ApiError> {
+    let settings = load_settings(&st.db).await?;
+    let scans = st.scans.clone();
+    blocking(move || scans.quick(&req, &settings).map(Json)).await
+}
+
+async fn helper_status(State(st): State<AppState>) -> Result<Json<crate::helper::HelperStatus>, ApiError> {
+    let helper = st.helper.clone();
+    blocking(move || Ok(Json(helper.status()))).await
+}
+
+/// Starts the elevated helper through the Windows administrator prompt. Blocks until the user answers.
+async fn helper_enable(State(st): State<AppState>) -> Result<Json<crate::helper::HelperStatus>, ApiError> {
+    let helper = st.helper.clone();
+    blocking(move || {
+        helper.enable().map_err(ApiError::Conflict)?;
+        Ok(Json(helper.status()))
+    })
+    .await
 }
 
 async fn history_diff(

@@ -7,6 +7,7 @@
 
 pub mod alloc;
 pub mod category;
+pub mod ntfs;
 pub mod paths;
 pub mod reparse;
 pub mod scan;

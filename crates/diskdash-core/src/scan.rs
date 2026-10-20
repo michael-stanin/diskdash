@@ -288,7 +288,7 @@ impl Ctx {
 }
 
 /// Totals contributed by one file row.
-fn add_file(t: &mut DirTotals, r: &Row, counts: bool) {
+pub(crate) fn add_file(t: &mut DirTotals, r: &Row, counts: bool) {
     if counts {
         t.size += r.size;
         t.alloc += r.alloc;
@@ -302,7 +302,7 @@ fn add_file(t: &mut DirTotals, r: &Row, counts: bool) {
 }
 
 /// A child directory's totals folded into its parent.
-fn add_dir(parent: &mut DirTotals, child: &DirTotals) {
+pub(crate) fn add_dir(parent: &mut DirTotals, child: &DirTotals) {
     parent.size += child.size;
     parent.alloc += child.alloc;
     parent.files += child.files;
@@ -488,7 +488,7 @@ fn denied_flag(e: &WinError) -> i64 {
     }
 }
 
-fn dir_row(id: i64, parent: i64, depth: i64, e: &FindEntry, path: &str, t: &DirTotals, flags: i64) -> Row {
+pub(crate) fn dir_row(id: i64, parent: i64, depth: i64, e: &FindEntry, path: &str, t: &DirTotals, flags: i64) -> Row {
     Row {
         id,
         parent_id: Some(parent),
@@ -513,7 +513,7 @@ fn meta_get(conn: &Connection, key: &str) -> rusqlite::Result<Option<String>> {
     conn.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0)).optional()
 }
 
-fn meta_set(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<()> {
+pub(crate) fn meta_set(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<()> {
     conn.execute(
         "INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         params![key, value],
@@ -740,7 +740,7 @@ fn write_root(conn: &mut Connection, root: &str) -> rusqlite::Result<()> {
     store::insert_rows(conn, &[row])
 }
 
-fn stats(conn: &Connection) -> rusqlite::Result<ScanStats> {
+pub(crate) fn stats(conn: &Connection) -> rusqlite::Result<ScanStats> {
     conn.query_row(
         "SELECT
            (SELECT count(*) FROM entries WHERE kind = 0 AND hardlink_of IS NULL),

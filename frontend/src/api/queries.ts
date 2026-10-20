@@ -28,6 +28,8 @@ import type { PlanItemView } from "./types/PlanItemView";
 import type { PlanSummary } from "./types/PlanSummary";
 import type { PlanView } from "./types/PlanView";
 import type { DiffResponse } from "./types/DiffResponse";
+import type { HelperStatus } from "./types/HelperStatus";
+import type { ScanModes } from "./types/ScanModes";
 import type { TieringResponse } from "./types/TieringResponse";
 import type { VolumesTrends } from "./types/VolumesTrends";
 import type { CandidatePage } from "./types/CandidatePage";
@@ -617,6 +619,35 @@ export function usePinSnapshot() {
   const invalidate = useInvalidateSnapshots();
   return useMutation({
     mutationFn: (v: { id: number; pinned: boolean }) => api<Snapshot>(`/snapshots/${v.id}/pin`, { method: "POST", body: { pinned: v.pinned } }),
+    onSuccess: () => void invalidate(),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Fast scan and the elevated helper
+// ---------------------------------------------------------------------------
+
+export function useScanModes() {
+  return useQuery({
+    queryKey: ["scan-modes"] as const,
+    queryFn: ({ signal }) => api<ScanModes>("/scans/modes", { signal }),
+    staleTime: 5_000,
+  });
+}
+
+/** Starts the helper; the Windows administrator prompt appears and the call returns when it is answered. */
+export function useEnableHelper() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<HelperStatus>("/helper/enable", { method: "POST", body: {} }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["scan-modes"] }),
+  });
+}
+
+export function useQuickRescan() {
+  const invalidate = useInvalidateSnapshots();
+  return useMutation({
+    mutationFn: (root: string) => api<ScanStarted>("/scans/quick", { method: "POST", body: { root } }),
     onSuccess: () => void invalidate(),
   });
 }

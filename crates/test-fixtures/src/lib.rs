@@ -14,6 +14,8 @@ use std::time::SystemTime;
 
 pub use tempfile::TempDir;
 
+pub mod vhdx;
+
 /// A fixture tree under a fresh temporary directory.
 pub struct Fixture {
     denied: Vec<PathBuf>,
@@ -24,6 +26,12 @@ pub struct Fixture {
 impl Fixture {
     pub fn new() -> Self {
         let dir = tempfile::Builder::new().prefix("diskdash-fixture-").tempdir().expect("temp dir");
+        Self { denied: Vec::new(), dir }
+    }
+
+    /// A fixture tree under a fresh directory inside `parent` (for example on a test VHDX).
+    pub fn in_dir(parent: &Path) -> Self {
+        let dir = tempfile::Builder::new().prefix("diskdash-fixture-").tempdir_in(parent).expect("temp dir");
         Self { denied: Vec::new(), dir }
     }
 
