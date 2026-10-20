@@ -347,6 +347,7 @@ async fn a_failed_fast_scan_falls_back_to_the_walk_and_records_the_reason() {
         cleanup: None,
         plans: None,
         helper: h.clone(),
+        alerts: None,
         own_files: f.own.clone(),
         history: None,
         completed: Mutex::new(Vec::new()),

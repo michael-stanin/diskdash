@@ -1,5 +1,5 @@
 import { QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "./client";
+import { api, apiDownload } from "./client";
 import type { Drive } from "./types/Drive";
 import type { DrivesResponse } from "./types/DrivesResponse";
 import type { Health } from "./types/Health";
@@ -27,7 +27,12 @@ import type { AddItemResult } from "./types/AddItemResult";
 import type { PlanItemView } from "./types/PlanItemView";
 import type { PlanSummary } from "./types/PlanSummary";
 import type { PlanView } from "./types/PlanView";
+import type { AlertView } from "./types/AlertView";
+import type { AlertsResponse } from "./types/AlertsResponse";
 import type { DiffResponse } from "./types/DiffResponse";
+import type { ReportRequest } from "./types/ReportRequest";
+import type { SavedReport } from "./types/SavedReport";
+import type { SectionInfo } from "./types/SectionInfo";
 import type { HelperStatus } from "./types/HelperStatus";
 import type { ScanModes } from "./types/ScanModes";
 import type { TieringResponse } from "./types/TieringResponse";
@@ -649,5 +654,65 @@ export function useQuickRescan() {
   return useMutation({
     mutationFn: (root: string) => api<ScanStarted>("/scans/quick", { method: "POST", body: { root } }),
     onSuccess: () => void invalidate(),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Alerts
+// ---------------------------------------------------------------------------
+
+export type AlertStatus = "active" | "resolved" | "all";
+
+export function useAlertList(status: AlertStatus = "active") {
+  return useQuery({
+    queryKey: ["alerts", status] as const,
+    queryFn: ({ signal }) => api<AlertsResponse>(`/alerts?status=${status}`, { signal }),
+    staleTime: 15_000,
+  });
+}
+
+export function useDismissAlert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<AlertView>(`/alerts/${id}/dismiss`, { method: "POST", body: {} }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["alerts"] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+
+export function useReportSections(drive?: string) {
+  const q = drive ? `?drive=${encodeURIComponent(drive)}` : "";
+  return useQuery({
+    queryKey: ["reports", "sections", drive ?? ""] as const,
+    queryFn: ({ signal }) => api<SectionInfo[]>(`/reports/sections${q}`, { signal }),
+    staleTime: 10_000,
+  });
+}
+
+/** Build a report and hand it to the browser as a download. */
+export function useDownloadReport() {
+  return useMutation({
+    mutationFn: async (req: Omit<ReportRequest, "folder">) => {
+      const { blob, fileName } = await apiDownload("/reports", req);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      return fileName;
+    },
+  });
+}
+
+/** Build a report and save it as a new file in a folder the user typed. */
+export function useSaveReport() {
+  return useMutation({
+    mutationFn: (req: ReportRequest) => api<SavedReport>("/reports/save", { method: "POST", body: req }),
   });
 }

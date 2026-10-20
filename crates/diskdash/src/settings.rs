@@ -49,6 +49,10 @@ pub struct Settings {
     pub retention_keep: u32,
     /// History: folder depth kept in a shrunk snapshot.
     pub retention_depth: u32,
+    /// Alerts: a folder growing faster than this many GiB per day raises an alert.
+    pub alert_growth_gib_per_day: f64,
+    /// Alerts: the same alert is not raised again for this many hours.
+    pub alert_cooldown_hours: u32,
     /// Folders that are never suggested by any analysis (Settings > Exclusions).
     pub excluded_paths: Vec<String>,
     /// Folders that are never suggested and never added to a plan, on top of the built-in list.
@@ -71,6 +75,8 @@ impl Default for Settings {
             tiering_hot_days: 30,
             retention_keep: 5,
             retention_depth: 4,
+            alert_growth_gib_per_day: 5.0,
+            alert_cooldown_hours: 24,
             excluded_paths: Vec::new(),
             protected_paths: Vec::new(),
         }
@@ -98,6 +104,16 @@ impl Settings {
         range("tiering_hot_days", (1..=365).contains(&self.tiering_hot_days), "must be between 1 and 365 days");
         range("retention_keep", (2..=50).contains(&self.retention_keep), "must be between 2 and 50 scans");
         range("retention_depth", (1..=8).contains(&self.retention_depth), "must be between 1 and 8 levels");
+        range(
+            "alert_growth_gib_per_day",
+            self.alert_growth_gib_per_day.is_finite() && (0.01..=10_000.0).contains(&self.alert_growth_gib_per_day),
+            "must be between 0.01 and 10000 GiB per day",
+        );
+        range(
+            "alert_cooldown_hours",
+            (1..=720).contains(&self.alert_cooldown_hours),
+            "must be between 1 and 720 hours",
+        );
         range("hdd_scan_concurrency", (1..=2).contains(&self.hdd_scan_concurrency), "must be 1 or 2");
         range("ssd_scan_concurrency", (1..=16).contains(&self.ssd_scan_concurrency), "must be between 1 and 16");
         range(

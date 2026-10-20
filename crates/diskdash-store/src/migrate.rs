@@ -22,6 +22,7 @@ pub const MIGRATIONS: &[Migration] = &[
     Migration { version: 8, name: "tiering", sql: include_str!("../migrations/0008_tiering.sql") },
     Migration { version: 9, name: "history", sql: include_str!("../migrations/0009_history.sql") },
     Migration { version: 10, name: "fast_scan", sql: include_str!("../migrations/0010_fast_scan.sql") },
+    Migration { version: 11, name: "alerts", sql: include_str!("../migrations/0011_alerts.sql") },
 ];
 
 #[derive(Debug, thiserror::Error)]

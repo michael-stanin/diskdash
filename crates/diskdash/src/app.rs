@@ -48,6 +48,8 @@ pub struct AppState {
     pub plans: Arc<crate::plans::PlanService>,
     pub tiering: Arc<crate::tiering::TieringService>,
     pub helper: Arc<dyn crate::helper::HelperLink>,
+    pub alerts: Arc<crate::alerts::AlertService>,
+    pub reports: Arc<crate::reports::ReportService>,
     pub own: OwnFiles,
     pub launcher: Arc<dyn Launcher>,
     pub assets: Arc<dyn AssetSource>,
@@ -74,6 +76,11 @@ pub fn build_router(state: AppState) -> Router {
         .route("/scans", post(start_scan))
         .route("/scans/modes", get(scan_modes))
         .route("/scans/quick", post(quick_scan))
+        .route("/reports", post(export_report))
+        .route("/reports/save", post(save_report))
+        .route("/reports/sections", get(report_sections))
+        .route("/alerts", get(list_alerts))
+        .route("/alerts/{id}/dismiss", post(dismiss_alert))
         .route("/helper", get(helper_status))
         .route("/helper/enable", post(helper_enable))
         .route("/snapshots", get(list_snapshots))
@@ -755,6 +762,91 @@ async fn export_plan(
 async fn verify_plan(State(st): State<AppState>, Path(id): Path<i64>) -> Result<Json<JobCreated>, ApiError> {
     let svc = st.plans.clone();
     blocking(move || Ok(Json(JobCreated { id: svc.submit_verify(&[], Some(id))? }))).await
+}
+
+#[derive(serde::Deserialize)]
+struct SectionsQuery {
+    drive: Option<String>,
+}
+
+async fn report_sections(
+    State(st): State<AppState>,
+    Query(q): Query<SectionsQuery>,
+) -> Result<Json<Vec<crate::reports::SectionInfo>>, ApiError> {
+    let reports = st.reports.clone();
+    blocking(move || reports.availability(q.drive.as_deref()).map(Json)).await
+}
+
+/// Generate a report and return it as a file download. Reads stored data only.
+async fn export_report(
+    State(st): State<AppState>,
+    Json(req): Json<crate::reports::ReportRequest>,
+) -> Result<axum::response::Response, ApiError> {
+    let reports = st.reports.clone();
+    let (bytes, name, content_type) = blocking(move || {
+        let report = reports.build(&req)?;
+        let bytes = crate::reports::render(&report, req.format).map_err(ApiError::Internal)?;
+        Ok((
+            bytes,
+            format!("{}.{}", crate::reports::file_stem(&report), req.format.extension()),
+            req.format.content_type(),
+        ))
+    })
+    .await?;
+    axum::response::Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, content_type)
+        .header(axum::http::header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}\""))
+        .header(axum::http::header::CACHE_CONTROL, "no-store")
+        .header("x-content-type-options", "nosniff")
+        .body(axum::body::Body::from(bytes))
+        .map_err(ApiError::internal)
+}
+
+/// Generate a report and write it, as a new file, into the folder the user chose.
+async fn save_report(
+    State(st): State<AppState>,
+    Json(req): Json<crate::reports::ReportRequest>,
+) -> Result<Json<crate::reports::SavedReport>, ApiError> {
+    let reports = st.reports.clone();
+    blocking(move || {
+        let folder = req.folder.clone().filter(|f| !f.trim().is_empty()).ok_or_else(|| {
+            ApiError::Validation([("folder".to_string(), "choose a folder to save into".to_string())].into())
+        })?;
+        let report = reports.build(&req)?;
+        let bytes = crate::reports::render(&report, req.format).map_err(ApiError::Internal)?;
+        let path = diskdash_store::write_report_file(
+            std::path::Path::new(folder.trim()),
+            &crate::reports::file_stem(&report),
+            req.format.extension(),
+            &bytes,
+        )
+        .map_err(|e| match e {
+            diskdash_store::ReportWriteError::Write { .. } => ApiError::Conflict(e.to_string()),
+            other => ApiError::Validation([("folder".to_string(), other.to_string())].into()),
+        })?;
+        Ok(Json(crate::reports::SavedReport {
+            file_name: path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+            path: path.to_string_lossy().to_string(),
+            bytes: bytes.len() as u64,
+        }))
+    })
+    .await
+}
+
+async fn list_alerts(
+    State(st): State<AppState>,
+    Query(q): Query<crate::alerts::AlertQuery>,
+) -> Result<Json<crate::alerts::AlertsResponse>, ApiError> {
+    let alerts = st.alerts.clone();
+    blocking(move || alerts.list(&q).map(Json)).await
+}
+
+async fn dismiss_alert(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<crate::alerts::AlertView>, ApiError> {
+    let alerts = st.alerts.clone();
+    blocking(move || alerts.dismiss(id).map(Json)).await
 }
 
 async fn scan_modes(State(st): State<AppState>) -> Result<Json<crate::scans::ScanModes>, ApiError> {

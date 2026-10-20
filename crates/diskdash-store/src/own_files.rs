@@ -136,6 +136,87 @@ impl OwnFiles {
     }
 }
 
+/// Extensions a report may have. Never anything executable.
+pub const REPORT_EXTENSIONS: &[&str] = &["html", "csv", "zip", "json"];
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReportWriteError {
+    #[error("choose a full folder path on a local drive, such as D:\\Reports ({0})")]
+    NotAFolderPath(String),
+    #[error("{0} is not a folder that exists")]
+    NoSuchFolder(PathBuf),
+    #[error("reports can only be .html, .csv, .zip or .json files, not .{0}")]
+    BadExtension(String),
+    #[error("cannot write to {path}: {source}")]
+    Write { path: PathBuf, source: io::Error },
+}
+
+/// Letters, digits, dot, dash and underscore only; anything else would let a name steer the write.
+fn safe_stem(stem: &str) -> bool {
+    !stem.is_empty()
+        && stem.len() <= 80
+        && !stem.starts_with('.')
+        && stem.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+}
+
+/// Write a finished report into a folder the user picked.
+///
+/// This is the only place outside the data directory that diskdash writes, and it
+/// can only create a **new** file there: the name is reserved with `create_new`
+/// (an existing file is never replaced; a counter is added instead), the content
+/// goes to a temporary file in the same folder, and that is renamed over the
+/// reserved name. On any failure the temporary and reserved files are removed, so a
+/// failed export leaves nothing behind.
+pub fn write_report_file(dir: &Path, stem: &str, ext: &str, bytes: &[u8]) -> Result<PathBuf, ReportWriteError> {
+    let ext = ext.to_ascii_lowercase();
+    if !REPORT_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(ReportWriteError::BadExtension(ext));
+    }
+    let raw = dir.as_os_str().to_string_lossy().to_string();
+    let drive_part = raw.strip_prefix(r"\\?\").unwrap_or(&raw);
+    let local_drive = drive_part.as_bytes().get(1) == Some(&b':') && drive_part.as_bytes()[0].is_ascii_alphabetic();
+    let has_dots = raw.split(['\\', '/']).any(|seg| seg == ".." || seg == ".");
+    if !local_drive || has_dots || !dir.is_absolute() {
+        return Err(ReportWriteError::NotAFolderPath(raw));
+    }
+    if !std::fs::metadata(dir).is_ok_and(|m| m.is_dir()) {
+        return Err(ReportWriteError::NoSuchFolder(dir.to_path_buf()));
+    }
+    if !safe_stem(stem) {
+        return Err(ReportWriteError::NotAFolderPath(format!("bad file name {stem}")));
+    }
+    let werr = |path: &Path, source: io::Error| ReportWriteError::Write { path: path.to_path_buf(), source };
+
+    // Reserve a name that does not exist yet.
+    let mut final_path = dir.join(format!("{stem}.{ext}"));
+    let mut n = 1;
+    loop {
+        match OpenOptions::new().write(true).create_new(true).open(&final_path) {
+            Ok(_) => break,
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists && n < 1000 => {
+                n += 1;
+                final_path = dir.join(format!("{stem}-{n}.{ext}"));
+            }
+            Err(e) => return Err(werr(&final_path, e)),
+        }
+    }
+    let tmp = dir.join(format!(".{stem}.{}.tmp", std::process::id()));
+    let result = (|| -> io::Result<()> {
+        use std::io::Write;
+        let mut f = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        drop(f);
+        std::fs::rename(&tmp, &final_path)
+    })();
+    if let Err(e) = result {
+        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(&final_path);
+        return Err(werr(&final_path, e));
+    }
+    Ok(final_path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,5 +306,77 @@ mod tests {
         let (_tmp, own) = setup();
         let root = own.root().to_path_buf();
         assert!(matches!(own.remove_file(&root), Err(OwnFilesError::OutsideDataDir(_))));
+    }
+
+    #[test]
+    fn report_files_are_new_atomic_and_only_the_allowed_kinds() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = write_report_file(tmp.path(), "diskdash-report-1", "html", b"<p>hi</p>").unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), b"<p>hi</p>");
+        // The same name again gets a counter; nothing is replaced.
+        let q = write_report_file(tmp.path(), "diskdash-report-1", "html", b"second").unwrap();
+        assert_ne!(p, q);
+        assert_eq!(std::fs::read(&p).unwrap(), b"<p>hi</p>");
+        let names: Vec<String> = std::fs::read_dir(tmp.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(names.iter().all(|n| !n.ends_with(".tmp")), "no temporary file is left: {names:?}");
+        for bad in ["ps1", "bat", "cmd", "exe", "js", "html.ps1", ""] {
+            assert!(
+                matches!(write_report_file(tmp.path(), "r", bad, b"x"), Err(ReportWriteError::BadExtension(_))),
+                "{bad}"
+            );
+        }
+        assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn report_folders_and_names_are_validated() {
+        let tmp = tempfile::tempdir().unwrap();
+        for bad in ["relative\\dir", r"\\server\share", r"C:\..\x", "", r"C:\Windows\.\x"] {
+            assert!(
+                matches!(write_report_file(Path::new(bad), "r", "csv", b"x"), Err(ReportWriteError::NotAFolderPath(_))),
+                "{bad}"
+            );
+        }
+        assert!(matches!(
+            write_report_file(&tmp.path().join("missing"), "r", "csv", b"x"),
+            Err(ReportWriteError::NoSuchFolder(_))
+        ));
+        // A file is not a folder.
+        let f = tmp.path().join("a.txt");
+        std::fs::write(&f, b"x").unwrap();
+        assert!(matches!(write_report_file(&f, "r", "csv", b"x"), Err(ReportWriteError::NoSuchFolder(_))));
+        for stem in ["../evil", "a b", "x/y", ".hidden", "", "a:b"] {
+            assert!(write_report_file(tmp.path(), stem, "csv", b"x").is_err(), "{stem}");
+        }
+    }
+
+    #[test]
+    fn an_unwritable_folder_fails_cleanly_and_leaves_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("locked");
+        std::fs::create_dir(&dir).unwrap();
+        let user = std::env::var("USERNAME").unwrap();
+        let denied = std::process::Command::new("icacls")
+            .arg(&dir)
+            .args(["/deny", &format!("{user}:(OI)(CI)(W,DC)")])
+            .output()
+            .unwrap()
+            .status
+            .success();
+        assert!(denied, "icacls /deny");
+        struct Restore(PathBuf, String);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                let _ = std::process::Command::new("icacls").arg(&self.0).args(["/remove:d", &self.1]).output();
+            }
+        }
+        let restore = Restore(dir.clone(), user);
+        let err = write_report_file(&dir, "report", "json", b"{}").unwrap_err();
+        assert!(matches!(err, ReportWriteError::Write { .. }), "{err}");
+        drop(restore);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "no partial or reserved file remains");
     }
 }

@@ -1,6 +1,8 @@
 import { AlertTriangle, HardDrive, HeartPulse, RotateCw, ScanSearch } from "lucide-react";
 import { PageHeader } from "@/app/PageHeader";
 import { useCleanupOverview, useDrives, useHistoryVolumes, useLatestSnapshots, useRefreshDrives, useSettings } from "@/api/queries";
+import { AlertBanners } from "@/components/alerts/AlertBanners";
+import { ExportButton } from "@/components/reports/ExportDialog";
 import { ScanActivity } from "@/components/scans/ScanActivity";
 import { useScanDialog } from "@/components/scans/ScanDialog";
 import { DriveCard, DriveCardSkeleton } from "@/components/drives/DriveCard";
@@ -55,6 +57,7 @@ export function HomePage() {
         }
         actions={
           <>
+            <ExportButton />
             <Button variant="secondary" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
               <RotateCw className={refresh.isPending ? "animate-spin" : undefined} /> Refresh
             </Button>
@@ -65,6 +68,7 @@ export function HomePage() {
         }
       />
 
+      <AlertBanners />
       <ScanActivity />
 
       {drives.isError ? (

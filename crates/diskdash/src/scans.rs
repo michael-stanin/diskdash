@@ -129,6 +129,8 @@ pub struct ScanService {
     pub last_access: fn() -> Option<Setting>,
     /// The elevated read-only helper (fast MFT scans, quick rescans).
     pub helper: Arc<dyn HelperLink>,
+    /// Evaluates alerts after every scan that completes.
+    pub alerts: Option<Arc<crate::alerts::AlertService>>,
 }
 
 pub(crate) fn drive_for<'a>(drives: &'a [Drive], root: &str) -> Option<&'a Drive> {
@@ -478,6 +480,7 @@ impl ScanService {
             cleanup: self.cleanup.clone(),
             plans: self.plans.clone(),
             helper: self.helper.clone(),
+            alerts: self.alerts.clone(),
             own_files: self.own.clone(),
             history: Some(HistoryHooks {
                 own: self.own.clone(),
@@ -514,6 +517,7 @@ pub struct ScanJob {
     pub cleanup: Option<Arc<CleanupService>>,
     pub plans: Option<Arc<crate::plans::PlanService>>,
     pub helper: Arc<dyn HelperLink>,
+    pub alerts: Option<Arc<crate::alerts::AlertService>>,
     pub own_files: OwnFiles,
     /// Free-space sample and old-scan clean-up after scans.
     pub history: Option<HistoryHooks>,
@@ -854,6 +858,14 @@ impl Job for ScanJob {
                 ) {
                     tracing::warn!(error = %e, "cannot shrink old scans");
                 }
+            }
+        }
+
+        // Alerts: low space and fast growth, after the free-space sample and the history clean-up.
+        if let Some(a) = &self.alerts {
+            let ids = self.completed.lock().map(|d| d.clone()).unwrap_or_default();
+            if !ids.is_empty() {
+                a.after_scan(&ids);
             }
         }
 

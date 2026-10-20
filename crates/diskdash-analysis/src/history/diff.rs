@@ -133,19 +133,24 @@ pub fn diff_dirs(old: &HashMap<String, DirRow>, new: &HashMap<String, DirRow>) -
             out.disappeared.push(delta(Some(o), None));
         }
     }
-    // The largest change among each parent's children.
-    let mut biggest_child: HashMap<&str, i64> = HashMap::new();
-    for (k, d) in &changed {
-        if let Some(p) = parent_key(k) {
-            let e = biggest_child.entry(p).or_insert(0);
-            if d.delta.abs() > e.abs() && d.delta.signum() != 0 {
-                *e = d.delta;
+    // The largest change among each parent's children; new and removed folders explain their parent too.
+    let mut biggest_child: HashMap<String, i64> = HashMap::new();
+    let contributions = changed
+        .iter()
+        .map(|(k, d)| (k.to_string(), d.delta))
+        .chain(out.appeared.iter().map(|d| (key(&d.path), d.delta)))
+        .chain(out.disappeared.iter().map(|d| (key(&d.path), d.delta)));
+    for (k, delta) in contributions {
+        if let Some(p) = parent_key(&k) {
+            let e = biggest_child.entry(p.to_string()).or_insert(0);
+            if delta.abs() > e.abs() && delta.signum() != 0 {
+                *e = delta;
             }
         }
     }
     for (k, d) in &changed {
         let explained = biggest_child
-            .get(k)
+            .get(*k)
             .is_some_and(|c| c.signum() == d.delta.signum() && (c.abs() as f64) >= 0.9 * d.delta.abs() as f64);
         if explained {
             continue;
@@ -216,6 +221,16 @@ mod tests {
             "only the outermost new folder"
         );
         assert_eq!(d.disappeared.iter().map(|x| x.path.as_str()).collect::<Vec<_>>(), [r"D:\Old"]);
+    }
+
+    #[test]
+    fn a_parent_explained_by_a_new_or_removed_folder_is_not_listed_as_the_answer() {
+        let d = diff_dirs(&set(&[(r"D:\", 10)]), &set(&[(r"D:\", 20), (r"D:\New", 10)]));
+        assert!(d.growing.is_empty(), "{:?}", d.growing);
+        assert_eq!(d.appeared.len(), 1);
+        let d = diff_dirs(&set(&[(r"D:\", 20), (r"D:\Gone", 10)]), &set(&[(r"D:\", 10)]));
+        assert!(d.shrinking.is_empty(), "{:?}", d.shrinking);
+        assert_eq!(d.disappeared.len(), 1);
     }
 
     #[test]

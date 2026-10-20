@@ -76,12 +76,16 @@ struct Cache {
     error: Option<String>,
 }
 
+/// Called after every successful refresh with the new drive list (alerts hook in here).
+pub type RefreshHook = Arc<dyn Fn(&[Drive]) + Send + Sync>;
+
 pub struct InventoryService {
     source: Box<dyn InventorySource>,
     db: Db,
     events: Arc<EventBus>,
     cache: RwLock<Cache>,
     refreshing: Mutex<()>,
+    after_refresh: Mutex<Option<RefreshHook>>,
 }
 
 impl InventoryService {
@@ -93,7 +97,20 @@ impl InventoryService {
             stale: false,
             error: None,
         });
-        Self { source, db, events, cache: RwLock::new(cache), refreshing: Mutex::new(()) }
+        Self {
+            source,
+            db,
+            events,
+            cache: RwLock::new(cache),
+            refreshing: Mutex::new(()),
+            after_refresh: Mutex::new(None),
+        }
+    }
+
+    pub fn set_after_refresh(&self, hook: RefreshHook) {
+        if let Ok(mut h) = self.after_refresh.lock() {
+            *h = Some(hook);
+        }
     }
 
     pub fn has_data(&self) -> bool {
@@ -121,6 +138,7 @@ impl InventoryService {
             return Err(msg);
         }
         let now = now_rfc3339();
+        let drives_for_hook = inv.drives.clone();
         if let Err(e) = self.persist(&inv, &now) {
             tracing::error!(error = %e, "failed to persist inventory");
         }
@@ -133,6 +151,9 @@ impl InventoryService {
         }
         tracing::info!(ms = started.elapsed().as_millis() as u64, "inventory refreshed");
         self.events.publish("inventory.updated", serde_json::json!({ "refreshed_at": now }));
+        if let Some(hook) = self.after_refresh.lock().ok().and_then(|h| h.clone()) {
+            hook(&drives_for_hook);
+        }
         Ok(())
     }
 

@@ -172,6 +172,16 @@ fn fixture_with_helper(
         templates: diskdash_analysis::plans::Templates::builtin(),
     });
     let helper: Arc<dyn diskdash::helper::HelperLink> = helper_link;
+    let alerts =
+        Arc::new(diskdash::alerts::AlertService::new(db.clone(), own.clone(), events.clone(), inventory.clone()));
+    {
+        let weak = Arc::downgrade(&alerts);
+        inventory.set_after_refresh(Arc::new(move |drives| {
+            if let Some(a) = weak.upgrade() {
+                a.on_inventory(drives);
+            }
+        }));
+    }
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -182,6 +192,7 @@ fn fixture_with_helper(
         plans: Some(plans.clone()),
         last_access: || Some(diskdash_analysis::stale::Setting::UserDisabled),
         helper: helper.clone(),
+        alerts: Some(alerts.clone()),
     });
     let mut files = HashMap::new();
     files.insert(
@@ -190,6 +201,15 @@ fn fixture_with_helper(
     );
     files.insert("assets/app-abc123.js".to_string(), b"console.log(1)".to_vec());
     let launcher = Arc::new(FakeLauncher::default());
+    let reports = Arc::new(diskdash::reports::ReportService {
+        db: db.clone(),
+        own: own.clone(),
+        inventory: inventory.clone(),
+        cleanup: cleanup.clone(),
+        dups: dups.clone(),
+        plans: plans.clone(),
+        tiering: tiering.clone(),
+    });
     let state = AppState {
         security: Arc::new(Security::with_token(PORT, TOKEN)),
         db: db.clone(),
@@ -203,6 +223,8 @@ fn fixture_with_helper(
         plans,
         tiering,
         helper,
+        alerts,
+        reports,
         own: own.clone(),
         launcher: launcher.clone(),
         assets: Arc::new(MemoryAssets(files)),
@@ -234,7 +256,7 @@ fn default_settings() -> serde_json::Value {
         "low_space_percent": 10.0, "low_space_floor_gib": 20, "stale_months": 12,
         "hdd_scan_concurrency": 1, "ssd_scan_concurrency": 4, "chart_children_per_level": 20,
         "hardlink_detection": "system-volume", "hardlink_overrides": {},
-        "tiering_cold_months": 12, "tiering_min_gib": 1, "tiering_hot_days": 30, "retention_keep": 5, "retention_depth": 4,
+        "tiering_cold_months": 12, "tiering_min_gib": 1, "tiering_hot_days": 30, "retention_keep": 5, "retention_depth": 4, "alert_growth_gib_per_day": 5.0, "alert_cooldown_hours": 24,
         "excluded_paths": [], "protected_paths": []
     })
 }
@@ -483,3 +505,5 @@ include!("include/plans_api.rs");
 include!("include/tiering_api.rs");
 include!("include/history_api.rs");
 include!("include/fast_scan_api.rs");
+include!("include/alerts_api.rs");
+include!("include/reports_api.rs");

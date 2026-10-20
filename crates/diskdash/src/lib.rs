@@ -3,6 +3,7 @@
 //! The binary (`main.rs`) wires these modules together; tests build the same
 //! router with [`app::build_router`].
 
+pub mod alerts;
 pub mod app;
 pub mod apps;
 pub mod assets;
@@ -20,6 +21,7 @@ pub mod jobs;
 pub mod logging;
 pub mod plans;
 pub mod protection;
+pub mod reports;
 pub mod scans;
 pub mod security;
 pub mod settings;

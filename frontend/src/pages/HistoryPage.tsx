@@ -1,5 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import { GitCompareArrows, LineChart as LineChartIcon, RotateCw } from "lucide-react";
+import { useLocation } from "react-router";
 import { PageHeader } from "@/app/PageHeader";
 import { useHistoryDiff, useHistoryVolumes, useSnapshots, useStartScan } from "@/api/queries";
 import type { Snapshot } from "@/api/types/Snapshot";
@@ -72,9 +73,13 @@ function ComparePanel() {
   const snaps = useSnapshots();
   const scan = useStartScan();
   const { toast } = useToast();
+  // A growth alert links here with ?old=<scan>&new=<scan>.
+  const params = new URLSearchParams(useLocation().search);
+  const linkedOld = Number(params.get("old")) || undefined;
+  const linkedNew = Number(params.get("new")) || undefined;
   const [rootSel, setRoot] = useState<string>();
-  const [oldSel, setOld] = useState<number>();
-  const [newSel, setNew] = useState<number>();
+  const [oldSel, setOld] = useState<number | undefined>(linkedOld);
+  const [newSel, setNew] = useState<number | undefined>(linkedNew);
 
   const byRoot = useMemo(() => {
     const m = new Map<string, Snapshot[]>();
@@ -88,7 +93,8 @@ function ComparePanel() {
   }, [snaps.data]);
   // Prefer a root that already has two scans to compare.
   const roots = [...byRoot.keys()].sort((a, b) => (byRoot.get(b)!.length >= 2 ? 1 : 0) - (byRoot.get(a)!.length >= 2 ? 1 : 0));
-  const root = rootSel && byRoot.has(rootSel) ? rootSel : roots[0];
+  const linkedRoot = linkedNew ? [...byRoot.entries()].find(([, l]) => l.some((x) => x.id === linkedNew))?.[0] : undefined;
+  const root = rootSel && byRoot.has(rootSel) ? rootSel : (linkedRoot ?? roots[0]);
   const list = (root ? byRoot.get(root) : undefined) ?? [];
   const newId = newSel !== undefined && list.some((s) => s.id === newSel && !s.summarised) ? newSel : list.find((s) => !s.summarised)?.id;
   const olderThanNew = list.filter((s) => newId !== undefined && s.id < newId);

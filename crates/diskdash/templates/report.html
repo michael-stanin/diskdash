@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="diskdash {{ version }}">
+<title>diskdash report — {{ scope }}</title>
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 32px 24px 64px; background: #f7f8fa; color: #14171c; font: 14px/1.5 "Segoe UI", system-ui, sans-serif; }
+main { max-width: 980px; margin: 0 auto; }
+h1 { margin: 0 0 4px; font-size: 26px; }
+h2 { margin: 36px 0 12px; font-size: 18px; padding-top: 12px; border-top: 1px solid #e1e4e9; }
+h3 { margin: 22px 0 8px; font-size: 15px; }
+.meta { color: #5f6772; margin: 0 0 20px; }
+nav ul { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+nav a { color: #0b6b62; text-decoration: none; }
+nav a:hover { text-decoration: underline; }
+.note { background: #eef0f3; border-radius: 8px; padding: 10px 14px; color: #3c434d; margin: 8px 0; }
+.card { background: #ffffff; border: 1px solid #e1e4e9; border-radius: 12px; padding: 14px 16px; margin: 10px 0; overflow-x: auto; }
+figure { margin: 0; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #e1e4e9; vertical-align: top; }
+th { color: #5f6772; font-weight: 600; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.path { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; word-break: break-all; }
+pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 12px/1.45 Consolas, "Cascadia Mono", monospace; background: #eef0f3; border-radius: 6px; padding: 6px 8px; }
+footer { margin-top: 40px; color: #5f6772; font-size: 12px; }
+@media print { body { background: #fff; padding: 0; } .card { break-inside: avoid; } nav { display: none; } }
+</style>
+</head>
+<body>
+<main>
+<h1>diskdash report</h1>
+<p class="meta">{{ scope }} · generated {{ generated_at }} (UTC) · diskdash {{ version }} · read-only: nothing in this report ran or changed anything.</p>
+<nav aria-label="Sections"><ul>
+{% for s in sections %}<li><a href="#{{ s.id }}">{{ s.title }}</a></li>
+{% endfor %}</ul></nav>
+
+{% for s in sections %}
+<section id="{{ s.id }}">
+<h2>{{ s.title }}</h2>
+{% for b in s.blocks %}{% match b %}
+{% when Block::Heading with (t) %}<h3>{{ t }}</h3>
+{% when Block::Note with (t) %}<p class="note">{{ t }}</p>
+{% when Block::Svg with (svg) %}<div class="card"><figure>{{ svg|safe }}</figure></div>
+{% when Block::Table with (t) %}<div class="card"><table>
+<thead><tr>{% for h in t.headers %}<th{% if h.num %} class="num"{% endif %}>{{ h.text }}</th>{% endfor %}</tr></thead>
+<tbody>{% for row in t.rows %}<tr>{% for c in row %}<td{% if c.num %} class="num"{% else if c.path %} class="path"{% endif %}>{% if c.pre %}<pre>{{ c.text }}</pre>{% else %}{{ c.text }}{% endif %}</td>{% endfor %}</tr>
+{% endfor %}</tbody>
+</table></div>
+{% endmatch %}{% endfor %}
+</section>
+{% endfor %}
+
+<footer>This file is self-contained: it needs no network, scripts or fonts. Cleanup instructions are text for you to read and carry out yourself; diskdash does not run them.</footer>
+</main>
+</body>
+</html>

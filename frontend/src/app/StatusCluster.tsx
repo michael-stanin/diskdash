@@ -1,6 +1,7 @@
 import { Laptop, Loader2, Moon, ShieldAlert, Sun } from "lucide-react";
 import { useEvents } from "@/api/events";
 import { useSystem } from "@/api/queries";
+import { AlertBell } from "@/components/alerts/AlertBell";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
@@ -92,6 +93,7 @@ export function StatusCluster() {
       <ScanIndicator />
       <ReducedModeBadge />
       <ConnectionStatus />
+      <AlertBell />
       <ThemeToggle />
     </div>
   );

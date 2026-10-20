@@ -84,6 +84,17 @@ async fn main() -> anyhow::Result<()> {
         templates: diskdash_analysis::plans::Templates::builtin(),
     });
     let helper: Arc<dyn diskdash::helper::HelperLink> = diskdash::helper::ProcessHelper::beside_current_exe();
+    let alerts =
+        Arc::new(diskdash::alerts::AlertService::new(db.clone(), own.clone(), events.clone(), inventory.clone()));
+    {
+        // A weak reference: the inventory must not keep the alert service (which holds the inventory) alive.
+        let weak = Arc::downgrade(&alerts);
+        inventory.set_after_refresh(Arc::new(move |drives| {
+            if let Some(a) = weak.upgrade() {
+                a.on_inventory(drives);
+            }
+        }));
+    }
     let scans = Arc::new(diskdash::scans::ScanService {
         db: db.clone(),
         own: own.clone(),
@@ -94,8 +105,18 @@ async fn main() -> anyhow::Result<()> {
         plans: Some(plans.clone()),
         last_access: diskdash_analysis::stale::query_setting,
         helper: helper.clone(),
+        alerts: Some(alerts.clone()),
     });
 
+    let reports = Arc::new(diskdash::reports::ReportService {
+        db: db.clone(),
+        own: own.clone(),
+        inventory: inventory.clone(),
+        cleanup: cleanup.clone(),
+        dups: dups.clone(),
+        plans: plans.clone(),
+        tiering: tiering.clone(),
+    });
     let state = AppState {
         security: Arc::new(Security::new(config.port)),
         db,
@@ -109,6 +130,8 @@ async fn main() -> anyhow::Result<()> {
         plans,
         tiering,
         helper,
+        alerts,
+        reports,
         own,
         launcher: Arc::new(diskdash::shell::ExplorerLauncher),
         assets: Arc::new(EmbeddedAssets),

@@ -8,6 +8,9 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+askama.workspace = true
+csv.workspace = true
+zip.workspace = true
 axum.workspace = true
 diskdash-analysis.workspace = true
 diskdash-core.workspace = true

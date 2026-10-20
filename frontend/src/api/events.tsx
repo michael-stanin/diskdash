@@ -64,6 +64,7 @@ export function EventsProvider({ children, url = "/api/v1/events" }: { children:
           if (job.kind === "scan") void qc.invalidateQueries({ queryKey: ["tiering"] });
           if (job.kind === "scan") void qc.invalidateQueries({ queryKey: ["history"] });
           if (job.kind === "scan") void qc.invalidateQueries({ queryKey: ["scan-modes"] });
+          if (job.kind === "scan") void qc.invalidateQueries({ queryKey: ["reports"] });
         }
         if (job.kind === "duplicates" && (event.type === "job.queued" || event.type === "job.started")) {
           void qc.invalidateQueries({ queryKey: ["duplicates"] });
@@ -73,6 +74,7 @@ export function EventsProvider({ children, url = "/api/v1/events" }: { children:
         }
         if (event.type === "job.started" && job.kind === "scan") void qc.invalidateQueries({ queryKey: keys.snapshots });
       }
+      if (event.type === "alert.changed") void qc.invalidateQueries({ queryKey: ["alerts"] });
       listeners.current.forEach((fn) => fn(event));
     };
 

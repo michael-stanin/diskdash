@@ -11,6 +11,8 @@ import { LazyUsageExplorer } from "@/components/usage/LazyUsageExplorer";
 import { CleanupTab } from "@/components/cleanup/CleanupTab";
 import { DuplicatesView } from "@/components/duplicates/DuplicatesView";
 import { StaleNeedsScan, StaleTab } from "@/components/stale/StaleTab";
+import { AlertBanners } from "@/components/alerts/AlertBanners";
+import { ExportButton } from "@/components/reports/ExportDialog";
 import { ScanActivity } from "@/components/scans/ScanActivity";
 import { useScanDialog } from "@/components/scans/ScanDialog";
 import { SnapshotHistory } from "@/components/scans/SnapshotHistory";
@@ -154,6 +156,7 @@ export function DriveDetailPage() {
       <PageHeader
         title={d ? `${driveName(d)} ${driveTitle(d)}` : <Skeleton className="h-8 w-40" />}
         breadcrumb={[{ label: "Drives", to: "/drives" }, { label: d ? driveName(d) : "…" }]}
+        actions={d?.letters[0] ? <ExportButton drive={d.letters[0]} /> : undefined}
         subtitle={d ? `${d.filesystem} · ${formatBytes(d.cluster_size)} clusters${d.serial !== null ? ` · volume serial ${d.serial.toString(16).toUpperCase().padStart(8, "0")}` : ""}` : undefined}
       />
       <section aria-label="Space" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -173,6 +176,7 @@ export function DriveDetailPage() {
           </>
         )}
       </section>
+      <AlertBanners volumeId={id} />
       <ScanActivity />
       {d && (
         <Tabs

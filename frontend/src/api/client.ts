@@ -82,3 +82,25 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+/** POST a JSON body and return the response as a file (reports). The name comes from Content-Disposition. */
+export async function apiDownload(path: string, body: unknown): Promise<{ blob: Blob; fileName: string }> {
+  const res = await fetch(`/api/v1${path}`, {
+    method: "POST",
+    headers: { Accept: "*/*", "Content-Type": "application/json", [TOKEN_HEADER]: await getToken() },
+    body: JSON.stringify(body),
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    let parsed: ApiErrorBody | null = null;
+    try {
+      parsed = (await res.json()) as ApiErrorBody;
+    } catch {
+      // Non-JSON error body.
+    }
+    throw new ApiError(res.status, parsed, `POST ${path} failed with ${res.status}`);
+  }
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const fileName = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? "diskdash-report";
+  return { blob: await res.blob(), fileName };
+}

@@ -6,6 +6,7 @@ import { DriveDetailPage } from "@/pages/DriveDetailPage";
 import { DrivesPage } from "@/pages/DrivesPage";
 import { NotFoundPage } from "@/pages/placeholders";
 import { PlansPage } from "@/pages/PlansPage";
+import { AlertsPage } from "@/pages/AlertsPage";
 import { HistoryPage } from "@/pages/HistoryPage";
 import { TieringPage } from "@/pages/TieringPage";
 import { RecommendationsPage } from "@/pages/RecommendationsPage";
@@ -28,6 +29,7 @@ export const routes = [
       { path: "/apps", element: <AppsPage /> },
       { path: "/duplicates", element: <DuplicatesPage /> },
       { path: "/history", element: <HistoryPage /> },
+      { path: "/alerts", element: <AlertsPage /> },
       { path: "/tiering", element: <TieringPage /> },
       { path: "/plans", element: <PlansPage /> },
       { path: "/settings", element: <SettingsPage /> },

@@ -14,4 +14,4 @@ pub mod own_files;
 pub use datadir::DataDir;
 pub use db::{open_catalog, Db};
 pub use migrate::{migrate, Migration, MigrationError, MIGRATIONS};
-pub use own_files::{OwnFiles, OwnFilesError};
+pub use own_files::{write_report_file, OwnFiles, OwnFilesError, ReportWriteError, REPORT_EXTENSIONS};

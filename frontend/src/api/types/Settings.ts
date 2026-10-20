@@ -51,6 +51,14 @@ retention_keep: number,
  */
 retention_depth: number, 
 /**
+ * Alerts: a folder growing faster than this many GiB per day raises an alert.
+ */
+alert_growth_gib_per_day: number, 
+/**
+ * Alerts: the same alert is not raised again for this many hours.
+ */
+alert_cooldown_hours: number, 
+/**
  * Folders that are never suggested by any analysis (Settings > Exclusions).
  */
 excluded_paths: Array<string>, 
