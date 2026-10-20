@@ -6,6 +6,7 @@
 //!   HTTP client or TLS crate (safety rule 2: no outbound network).
 
 mod os_integration;
+mod package;
 mod readonly;
 
 use std::path::PathBuf;
@@ -18,8 +19,9 @@ fn main() -> ExitCode {
         "readonly-check" => report(readonly::check_tree(&root.join("crates"))),
         "no-http-client" => no_http_client(),
         "no-os-integration" => no_os_integration(),
+        "package" => package::package(&root),
         _ => {
-            eprintln!("usage: cargo xtask <readonly-check|no-http-client|no-os-integration>");
+            eprintln!("usage: cargo xtask <readonly-check|no-http-client|no-os-integration|package>");
             ExitCode::from(2)
         }
     }

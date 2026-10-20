@@ -19,6 +19,14 @@ This builds the UI and the server when they are out of date, starts `diskdash.ex
 
 The release build is a single `target\release\diskdash.exe` with the UI embedded; you can copy it anywhere and run it.
 
+## Share it (portable zip)
+
+```bash
+cargo xtask package
+```
+
+Builds the UI and release binaries, smoke-tests the packaged exe, and writes `dist\diskdash-<version>-windows-x64.zip` plus a `.sha256`. Friends unzip it and double-click `Start diskdash.cmd`: no install, nothing in the background, nothing leaves their PC. It needs `frontend\node_modules` (run `npm ci` once). The files are not code-signed, so SmartScreen may warn; the zip's README explains.
+
 ## Develop
 
 ```bash
