@@ -1,3 +1,5 @@
+import type { Forecast } from "@/api/types/Forecast";
+import { ForecastBadge } from "@/components/history/ForecastBadge";
 import { Link } from "react-router";
 import { ChevronRight } from "lucide-react";
 import type { Drive } from "@/api/types/Drive";
@@ -68,9 +70,11 @@ interface DriveCardProps {
   limitedHealth?: boolean;
   /** Cleanup suggestions from the latest whole-drive scan. */
   savings?: SnapshotCleanup;
+  /** Days-until-full outlook from the free-space history. */
+  forecast?: Forecast;
 }
 
-export function DriveCard({ drive: d, thresholds, lastScan, limitedHealth, savings }: DriveCardProps) {
+export function DriveCard({ drive: d, thresholds, lastScan, limitedHealth, savings, forecast }: DriveCardProps) {
   const state = fillState(d.used_fraction, d.low_space);
   const free = formatBytesParts(d.free);
   const model = d.physical_disks.map((p) => p.model).join(" + ") || "Physical disk unknown";
@@ -103,6 +107,7 @@ export function DriveCard({ drive: d, thresholds, lastScan, limitedHealth, savin
       <FillBar usedFraction={d.used_fraction} state={state} label={`${driveName(d)} ${formatPercent(d.used_fraction)} used`} />
 
       <DriveSavings cleanup={savings} />
+      {forecast && <ForecastBadge forecast={forecast} />}
 
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground">
         <HealthPill status={d.health} reasons={d.physical_disks.flatMap((p) => p.health.reasons)} limited={limitedHealth} />

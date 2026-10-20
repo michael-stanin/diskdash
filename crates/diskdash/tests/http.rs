@@ -218,7 +218,7 @@ fn default_settings() -> serde_json::Value {
         "low_space_percent": 10.0, "low_space_floor_gib": 20, "stale_months": 12,
         "hdd_scan_concurrency": 1, "ssd_scan_concurrency": 4, "chart_children_per_level": 20,
         "hardlink_detection": "system-volume", "hardlink_overrides": {},
-        "tiering_cold_months": 12, "tiering_min_gib": 1, "tiering_hot_days": 30,
+        "tiering_cold_months": 12, "tiering_min_gib": 1, "tiering_hot_days": 30, "retention_keep": 5, "retention_depth": 4,
         "excluded_paths": [], "protected_paths": []
     })
 }
@@ -465,3 +465,4 @@ include!("include/apps_api.rs");
 include!("include/dup_api.rs");
 include!("include/plans_api.rs");
 include!("include/tiering_api.rs");
+include!("include/history_api.rs");

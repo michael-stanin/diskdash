@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { History, Play, Trash2 } from "lucide-react";
+import { History, Pin, PinOff, Play, Trash2 } from "lucide-react";
 import { Link } from "react-router";
-import { useDeleteSnapshot, useResumeScan } from "@/api/queries";
+import { useDeleteSnapshot, usePinSnapshot, useResumeScan } from "@/api/queries";
 import type { Snapshot } from "@/api/types/Snapshot";
 import type { SnapshotStatus } from "@/api/types/SnapshotStatus";
 import { RelativeTime, SizeDisplay } from "@/components/SizeDisplay";
@@ -23,6 +23,7 @@ const STATUS: Record<SnapshotStatus, { label: string; className: string }> = {
 export function SnapshotHistory({ snapshots, loading }: { snapshots?: Snapshot[]; loading: boolean }) {
   const resume = useResumeScan();
   const remove = useDeleteSnapshot();
+  const pin = usePinSnapshot();
   const [confirm, setConfirm] = useState<Snapshot | null>(null);
 
   return (
@@ -46,7 +47,7 @@ export function SnapshotHistory({ snapshots, loading }: { snapshots?: Snapshot[]
               <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-semibold", STATUS[s.status].className)}>
                 {STATUS[s.status].label}
               </span>
-              {s.status === "complete" ? (
+              {s.status === "complete" && !s.summarised ? (
                 <Link to={`/snapshots/${s.id}`} className="font-mono text-xs text-primary no-underline hover:text-primary-hover">
                   {s.root}
                 </Link>
@@ -56,6 +57,14 @@ export function SnapshotHistory({ snapshots, loading }: { snapshots?: Snapshot[]
               <span className="text-muted-foreground">
                 <RelativeTime date={s.started_at} />
               </span>
+              {s.summarised && (
+                <span
+                  className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground-secondary"
+                  title={`Reduced to folder totals down to level ${s.summary_depth ?? "?"} to save space. It can still be compared in History.`}
+                >
+                  Totals only
+                </span>
+              )}
               {s.status === "complete" && (
                 <span className="num text-muted-foreground">
                   {formatCount(s.file_count)} files · <SizeDisplay bytes={s.total_alloc} />
@@ -63,6 +72,18 @@ export function SnapshotHistory({ snapshots, loading }: { snapshots?: Snapshot[]
               )}
               {s.error && s.status !== "complete" && <span className="text-xs text-muted-foreground">{s.error}</span>}
               <span className="ml-auto flex gap-1.5">
+                {s.status === "complete" && !s.summarised && (
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-pressed={s.pinned}
+                    aria-label={s.pinned ? `Unpin scan ${s.id}` : `Pin scan ${s.id} so it is never reduced`}
+                    disabled={pin.isPending}
+                    onClick={() => pin.mutate({ id: s.id, pinned: !s.pinned })}
+                  >
+                    {s.pinned ? <PinOff /> : <Pin />}
+                  </Button>
+                )}
                 {s.status === "partial" && (
                   <Button size="sm" variant="secondary" disabled={resume.isPending} onClick={() => resume.mutate(s.id)}>
                     <Play /> Resume

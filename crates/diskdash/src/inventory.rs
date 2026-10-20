@@ -168,6 +168,18 @@ impl InventoryService {
         resp
     }
 
+    /// Take a fresh free-space sample right after a scan finished and mark it as such,
+    /// so the trend chart can show when scans happened.
+    pub fn sample_after_scan(&self) {
+        if self.refresh().is_err() {
+            return;
+        }
+        if let Ok(conn) = self.db.connect() {
+            let bucket = unix_secs() / SAMPLE_BUCKET_SECS;
+            let _ = conn.execute("UPDATE volume_samples SET source = 'scan' WHERE bucket = ?1", [bucket as i64]);
+        }
+    }
+
     fn persist(&self, inv: &Inventory, now: &str) -> rusqlite::Result<()> {
         let mut conn = self.db.connect()?;
         let tx = conn.transaction()?;
@@ -206,7 +218,7 @@ impl InventoryService {
                 )?;
             }
             tx.execute(
-                "INSERT INTO volume_samples(volume_id, bucket, ts, capacity, free) VALUES (?1, ?2, ?3, ?4, ?5)
+                "INSERT INTO volume_samples(volume_id, bucket, ts, capacity, free, source) VALUES (?1, ?2, ?3, ?4, ?5, 'inventory')
                  ON CONFLICT(volume_id, bucket) DO UPDATE SET ts = excluded.ts, capacity = excluded.capacity, free = excluded.free",
                 params![d.id, bucket as i64, now, d.capacity as i64, d.free as i64],
             )?;
@@ -360,9 +372,14 @@ mod tests {
 
     #[test]
     fn empty_result_keeps_previous_values_as_stale() {
-        let (_t, svc, _db) = service(Some(1));
+        let (_t, svc, db) = service(Some(1));
         svc.refresh().unwrap();
+        let samples = |db: &Db| -> i64 {
+            db.connect().unwrap().query_row("SELECT count(*) FROM volume_samples", [], |r| r.get(0)).unwrap()
+        };
+        let before = samples(&db);
         assert!(svc.refresh().is_err());
+        assert_eq!(samples(&db), before, "an unavailable volume list records no sample (no zeros)");
         let resp = svc.snapshot(&Settings::default());
         assert_eq!(resp.drives.len(), 3);
         assert!(resp.stale);

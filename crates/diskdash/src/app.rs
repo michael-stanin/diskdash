@@ -83,6 +83,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/cleanup/evaluate", post(cleanup_evaluate))
         .route("/rules", get(list_rules))
         .route("/apps", get(list_apps))
+        .route("/history/diff", get(history_diff))
+        .route("/history/volumes", get(history_volumes))
+        .route("/snapshots/{id}/pin", post(snapshot_pin))
         .route("/tiering", get(tiering_suggestions))
         .route("/tiering/planned", post(tiering_planned))
         .route("/plans", get(list_plans).post(create_plan))
@@ -411,6 +414,11 @@ where
         return Err(ApiError::Conflict(format!(
             "snapshot {id} is {}; only complete scans can be browsed",
             snap.status.as_str()
+        )));
+    }
+    if snap.summarised {
+        return Err(ApiError::Conflict(format!(
+            "snapshot {id} was reduced to folder totals to save space; only History can compare it"
         )));
     }
     let conn = snapshots::open_snapshot(&st.own, &snap)?;
@@ -742,6 +750,32 @@ async fn export_plan(
 async fn verify_plan(State(st): State<AppState>, Path(id): Path<i64>) -> Result<Json<JobCreated>, ApiError> {
     let svc = st.plans.clone();
     blocking(move || Ok(Json(JobCreated { id: svc.submit_verify(&[], Some(id))? }))).await
+}
+
+async fn history_diff(
+    State(st): State<AppState>,
+    Query(q): Query<crate::history::DiffQuery>,
+) -> Result<Json<crate::history::DiffResponse>, ApiError> {
+    blocking(move || crate::history::diff(&st.db, &st.own, &q).map(Json)).await
+}
+
+async fn history_volumes(State(st): State<AppState>) -> Result<Json<crate::history::VolumesTrends>, ApiError> {
+    let settings = load_settings(&st.db).await?;
+    let now = crate::time::unix_now();
+    blocking(move || crate::history::volume_trends(&st.db, &settings, now).map(Json)).await
+}
+
+#[derive(serde::Deserialize)]
+struct PinRequest {
+    pinned: bool,
+}
+
+async fn snapshot_pin(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Json(req): Json<PinRequest>,
+) -> Result<Json<Snapshot>, ApiError> {
+    blocking(move || crate::history::set_pinned(&st.db, id, req.pinned).map(Json)).await
 }
 
 async fn tiering_suggestions(State(st): State<AppState>) -> Result<Json<crate::tiering::TieringResponse>, ApiError> {

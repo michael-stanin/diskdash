@@ -4,3 +4,8 @@ use std::time::SystemTime;
 pub fn now_rfc3339() -> String {
     humantime::format_rfc3339_seconds(SystemTime::now()).to_string()
 }
+
+/// Seconds since the Unix epoch.
+pub fn unix_now() -> i64 {
+    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+}

@@ -27,7 +27,9 @@ import type { AddItemResult } from "./types/AddItemResult";
 import type { PlanItemView } from "./types/PlanItemView";
 import type { PlanSummary } from "./types/PlanSummary";
 import type { PlanView } from "./types/PlanView";
+import type { DiffResponse } from "./types/DiffResponse";
 import type { TieringResponse } from "./types/TieringResponse";
+import type { VolumesTrends } from "./types/VolumesTrends";
 import type { CandidatePage } from "./types/CandidatePage";
 import type { CleanupOverview } from "./types/CleanupOverview";
 import type { Risk } from "./types/Risk";
@@ -587,5 +589,34 @@ export function useSetPlanned() {
   return useMutation({
     mutationFn: (v: { path: string; planned: boolean }) => api<TieringResponse>("/tiering/planned", { method: "POST", body: v }),
     onSuccess: (data) => qc.setQueryData(["tiering"], data),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// History and trends
+// ---------------------------------------------------------------------------
+
+export function useHistoryVolumes() {
+  return useQuery({
+    queryKey: ["history", "volumes"] as const,
+    queryFn: ({ signal }) => api<VolumesTrends>("/history/volumes", { signal }),
+    staleTime: 60_000,
+  });
+}
+
+export function useHistoryDiff(oldId?: number, newId?: number) {
+  return useQuery({
+    queryKey: ["history", "diff", oldId, newId] as const,
+    queryFn: ({ signal }) => api<DiffResponse>(`/history/diff?old=${oldId}&new=${newId}&limit=25`, { signal }),
+    enabled: oldId !== undefined && newId !== undefined && oldId < newId,
+    staleTime: 60_000,
+  });
+}
+
+export function usePinSnapshot() {
+  const invalidate = useInvalidateSnapshots();
+  return useMutation({
+    mutationFn: (v: { id: number; pinned: boolean }) => api<Snapshot>(`/snapshots/${v.id}/pin`, { method: "POST", body: { pinned: v.pinned } }),
+    onSuccess: () => void invalidate(),
   });
 }

@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
-import { SunburstChart, TreemapChart } from "echarts/charts";
-import { TooltipComponent } from "echarts/components";
+import { LineChart, SunburstChart, TreemapChart } from "echarts/charts";
+import { GridComponent, TooltipComponent } from "echarts/components";
 import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { buildChartTheme } from "@/lib/chart-theme";
 import { useTheme } from "@/lib/theme";
 
 // Only what diskdash draws: keeps the bundle small.
-echarts.use([TreemapChart, SunburstChart, TooltipComponent, CanvasRenderer]);
+echarts.use([TreemapChart, SunburstChart, LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
 export type EChartsOption = echarts.EChartsCoreOption;
 export type ClickParams = { data?: unknown; dataIndex?: number };

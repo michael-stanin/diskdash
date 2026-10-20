@@ -1,6 +1,6 @@
 import { HardDrive, RotateCw } from "lucide-react";
 import { PageHeader } from "@/app/PageHeader";
-import { useCleanupOverview, useDrives, useLatestSnapshots, useRefreshDrives, useSettings } from "@/api/queries";
+import { useCleanupOverview, useDrives, useHistoryVolumes, useLatestSnapshots, useRefreshDrives, useSettings } from "@/api/queries";
 import { ScanActivity } from "@/components/scans/ScanActivity";
 import { DriveCard, DriveCardSkeleton } from "@/components/drives/DriveCard";
 import { excludedNote } from "@/components/drives/excluded";
@@ -15,6 +15,7 @@ export function DrivesPage() {
   const refresh = useRefreshDrives();
   const latest = useLatestSnapshots();
   const cleanup = useCleanupOverview();
+  const history = useHistoryVolumes();
   const thresholds = {
     percent: settings.data?.low_space_percent ?? 10,
     floorGib: settings.data?.low_space_floor_gib ?? 20,
@@ -66,6 +67,7 @@ export function DrivesPage() {
               lastScan={latest.data?.find((s) => s.volume_id === d.id && s.root === `${d.letters[0]}:\\`)?.finished_at}
               limitedHealth={!data.sources.elevated}
               savings={cleanup.data?.drives.find((x) => x.volume_id === d.id && x.root === `${d.letters[0]}:\\`)?.cleanup}
+              forecast={history.data?.volumes.find((v) => v.volume_id === d.id)?.forecast}
             />
           ))}
         </div>

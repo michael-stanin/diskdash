@@ -239,7 +239,7 @@ impl ScanService {
             });
             started.push(StartedSnapshot { id, root: root.clone() });
         }
-        let job_id = self.submit(items, &conn)?;
+        let job_id = self.submit(items, &conn, settings)?;
         Ok(ScanStarted { job_id, snapshots: started, merged })
     }
 
@@ -269,10 +269,10 @@ impl ScanService {
             resume: true,
             group,
         };
-        self.submit(vec![item], &conn)
+        self.submit(vec![item], &conn, settings)
     }
 
-    fn submit(&self, items: Vec<ScanItem>, conn: &rusqlite::Connection) -> Result<u64, ApiError> {
+    fn submit(&self, items: Vec<ScanItem>, conn: &rusqlite::Connection, settings: &Settings) -> Result<u64, ApiError> {
         let ids: Vec<i64> = items.iter().map(|i| i.snapshot_id).collect();
         let job = ScanJob {
             items,
@@ -281,6 +281,12 @@ impl ScanService {
             windows_dir: std::env::var("SystemRoot").ok(),
             cleanup: self.cleanup.clone(),
             plans: self.plans.clone(),
+            history: Some(HistoryHooks {
+                own: self.own.clone(),
+                inventory: self.inventory.clone(),
+                keep: settings.retention_keep,
+                depth: settings.retention_depth,
+            }),
             completed: Mutex::new(Vec::new()),
         };
         let job_id = self.jobs.submit(Box::new(job)).map_err(ApiError::from)?;
@@ -292,6 +298,14 @@ impl ScanService {
     }
 }
 
+/// What a finished scan does for the history views.
+pub struct HistoryHooks {
+    pub own: OwnFiles,
+    pub inventory: Arc<InventoryService>,
+    pub keep: u32,
+    pub depth: u32,
+}
+
 /// Scans one or more roots: different physical disks in parallel, roots on
 /// the same disk one after another.
 pub struct ScanJob {
@@ -301,6 +315,8 @@ pub struct ScanJob {
     pub windows_dir: Option<String>,
     pub cleanup: Option<Arc<CleanupService>>,
     pub plans: Option<Arc<crate::plans::PlanService>>,
+    /// Free-space sample and old-scan clean-up after scans.
+    pub history: Option<HistoryHooks>,
     /// Snapshots that finished completely during this job.
     pub completed: Mutex<Vec<i64>>,
 }
@@ -473,6 +489,24 @@ impl Job for ScanJob {
             if !ids.is_empty() {
                 if let Err(e) = cleanup.submit(&ids) {
                     tracing::warn!(error = %e, "cannot queue cleanup evaluation");
+                }
+            }
+        }
+
+        // History: a free-space sample at the moment the scan finished, then shrink old scans.
+        if let Some(h) = &self.history {
+            let any = self.completed.lock().map(|d| !d.is_empty()).unwrap_or(false);
+            if any {
+                h.inventory.sample_after_scan();
+                if let Err(e) = crate::history::retain(
+                    &self.db,
+                    &h.own,
+                    h.keep,
+                    h.depth,
+                    crate::time::unix_now(),
+                    crate::history::Stop::Never,
+                ) {
+                    tracing::warn!(error = %e, "cannot shrink old scans");
                 }
             }
         }

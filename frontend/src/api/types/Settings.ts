@@ -43,6 +43,14 @@ tiering_min_gib: number,
  */
 tiering_hot_days: number, 
 /**
+ * History: full snapshots kept per scanned folder; older ones shrink to directory totals.
+ */
+retention_keep: number, 
+/**
+ * History: folder depth kept in a shrunk snapshot.
+ */
+retention_depth: number, 
+/**
  * Folders that are never suggested by any analysis (Settings > Exclusions).
  */
 excluded_paths: Array<string>, 

@@ -1,6 +1,6 @@
 import { AlertTriangle, HardDrive, HeartPulse, RotateCw, ScanSearch } from "lucide-react";
 import { PageHeader } from "@/app/PageHeader";
-import { useCleanupOverview, useDrives, useLatestSnapshots, useRefreshDrives, useSettings } from "@/api/queries";
+import { useCleanupOverview, useDrives, useHistoryVolumes, useLatestSnapshots, useRefreshDrives, useSettings } from "@/api/queries";
 import { ScanActivity } from "@/components/scans/ScanActivity";
 import { useScanDialog } from "@/components/scans/ScanDialog";
 import { DriveCard, DriveCardSkeleton } from "@/components/drives/DriveCard";
@@ -20,6 +20,7 @@ export function HomePage() {
   const refresh = useRefreshDrives();
   const latest = useLatestSnapshots();
   const cleanup = useCleanupOverview();
+  const history = useHistoryVolumes();
   const savingsFor = (id: string, letter?: string) =>
     cleanup.data?.drives.find((x) => x.volume_id === id && x.root === `${letter}:\\`)?.cleanup;
   const scanDialog = useScanDialog();
@@ -133,6 +134,7 @@ export function HomePage() {
                     lastScan={lastScanFor(d.id, d.letters[0])}
                     limitedHealth={!data.sources.elevated}
                     savings={savingsFor(d.id, d.letters[0])}
+                    forecast={history.data?.volumes.find((v) => v.volume_id === d.id)?.forecast}
                   />
                 ))}
               </div>

@@ -15,4 +15,12 @@ time_basis: TimeBasis,
 /**
  * Why: last-access updates on or off, or unknown.
  */
-time_basis_reason: BasisReason, };
+time_basis_reason: BasisReason, 
+/**
+ * Kept from automatic clean-up of old scans.
+ */
+pinned: boolean, 
+/**
+ * True once the scan was reduced to folder totals; its files can no longer be browsed.
+ */
+summarised: boolean, summary_depth: number | null, };

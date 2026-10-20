@@ -156,6 +156,8 @@ function SettingsForm({ saved }: { saved: Settings }) {
               {num("tiering_cold_months", "Cold on SSD after", "Tiering: data on an SSD that nobody modified for this long is suggested for an HDD.", "months")}
               {num("tiering_min_gib", "Smallest move suggested", "Tiering: smaller folders and files are not worth moving.", "GiB")}
               {num("tiering_hot_days", "Hot on HDD within", "Tiering: data on an HDD modified within this many days is suggested for an SSD.", "days")}
+              {num("retention_keep", "Full scans kept", "History: how many full scans to keep per folder. Older ones shrink to folder totals so history stays small.", "scans")}
+              {num("retention_depth", "Folder depth kept", "History: how many folder levels an older scan keeps after it shrinks.", "levels")}
               {num("chart_children_per_level", "Chart detail", "Folders shown per level in the treemap before grouping into “Other”.", "per level")}
             </CardBody>
           </Card>

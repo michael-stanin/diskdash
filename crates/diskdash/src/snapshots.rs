@@ -82,13 +82,19 @@ pub struct Snapshot {
     pub time_basis: TimeBasis,
     /// Why: last-access updates on or off, or unknown.
     pub time_basis_reason: BasisReason,
+    /// Kept from automatic clean-up of old scans.
+    pub pinned: bool,
+    /// True once the scan was reduced to folder totals; its files can no longer be browsed.
+    pub summarised: bool,
+    #[ts(type = "number | null")]
+    pub summary_depth: Option<u32>,
     #[serde(skip)]
     pub db_file: String,
 }
 
 const SNAP_COLS: &str = "id, root, volume_id, status, method, elevated, hardlinks, started_at, finished_at, resumed,
     file_count, dir_count, link_count, total_size, total_alloc, error_count, access_denied_count, link_unknown_count,
-    job_id, error, db_file, time_basis, time_basis_reason";
+    job_id, error, db_file, time_basis, time_basis_reason, pinned, detail_level, summary_depth";
 
 fn snap_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Snapshot> {
     let u = |i: usize| r.get::<_, i64>(i).map(|v| v.max(0) as u64);
@@ -116,6 +122,9 @@ fn snap_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Snapshot> {
         db_file: r.get(20)?,
         time_basis: TimeBasis::parse(&r.get::<_, String>(21)?),
         time_basis_reason: BasisReason::parse(&r.get::<_, String>(22)?),
+        pinned: r.get::<_, i64>(23)? != 0,
+        summarised: r.get::<_, String>(24)? == "summary",
+        summary_depth: r.get::<_, Option<i64>>(25)?.map(|d| d.max(0) as u32),
     })
 }
 
@@ -158,7 +167,7 @@ pub fn reconcile(db: &Db, own: &OwnFiles, snapshots_dir: &Path) -> Result<(), St
     conn.execute("UPDATE snapshots SET status = 'partial', error = 'interrupted' WHERE status = 'running'", [])
         .map_err(|e| e.to_string())?;
     let rows: Vec<(i64, String)> = conn
-        .prepare("SELECT id, db_file FROM snapshots")
+        .prepare("SELECT id, db_file FROM snapshots WHERE detail_level = 'full'")
         .and_then(|mut s| s.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect())
         .map_err(|e| e.to_string())?;
     let data_root = own.root().to_path_buf();
@@ -170,6 +179,14 @@ pub fn reconcile(db: &Db, own: &OwnFiles, snapshots_dir: &Path) -> Result<(), St
             )
             .map_err(|e| e.to_string())?;
         }
+    }
+    // A summarised snapshot has no file; one that is left over from an interrupted clean-up is removed.
+    let summarised: Vec<String> = conn
+        .prepare("SELECT db_file FROM snapshots WHERE detail_level = 'summary'")
+        .and_then(|mut s| s.query_map([], |r| r.get(0))?.collect())
+        .map_err(|e| e.to_string())?;
+    for file in &summarised {
+        remove_snapshot_files(own, &data_root.join(file)).map_err(|e| e.to_string())?;
     }
     let known: std::collections::HashSet<String> =
         rows.iter().map(|(_, f)| f.rsplit(['\\', '/']).next().unwrap_or(f).to_lowercase()).collect();
@@ -204,11 +221,19 @@ pub fn delete(conn: &Connection, own: &OwnFiles, snap: &Snapshot) -> Result<(), 
         ));
     }
     conn.execute("DELETE FROM snapshots WHERE id = ?1", [snap.id]).map_err(ApiError::internal)?;
-    let base = own.root().join(&snap.db_file);
+    remove_snapshot_files(own, &own.root().join(&snap.db_file)).map_err(ApiError::internal)?;
+    Ok(())
+}
+
+/// Remove a snapshot database and its `-wal` / `-shm` side files (our own files only).
+pub fn remove_snapshot_files(own: &OwnFiles, base: &Path) -> Result<(), diskdash_store::OwnFilesError> {
     for suffix in ["", "-wal", "-shm"] {
-        let mut p = base.clone().into_os_string();
+        let mut p = base.to_path_buf().into_os_string();
         p.push(suffix);
-        own.remove_file(Path::new(&p)).map_err(ApiError::internal)?;
+        let p = PathBuf::from(p);
+        if p.exists() {
+            own.remove_file(&p)?;
+        }
     }
     Ok(())
 }
@@ -304,7 +329,7 @@ fn has_column(conn: &Connection, col: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn cat_key(code: Option<i64>) -> Option<String> {
+pub(crate) fn cat_key(code: Option<i64>) -> Option<String> {
     code.map(|c| Category::from_code(c as u8).key().to_string())
 }
 

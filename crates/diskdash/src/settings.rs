@@ -45,6 +45,10 @@ pub struct Settings {
     pub tiering_min_gib: u32,
     /// Tiering: data on an HDD modified within this many days is hot.
     pub tiering_hot_days: u32,
+    /// History: full snapshots kept per scanned folder; older ones shrink to directory totals.
+    pub retention_keep: u32,
+    /// History: folder depth kept in a shrunk snapshot.
+    pub retention_depth: u32,
     /// Folders that are never suggested by any analysis (Settings > Exclusions).
     pub excluded_paths: Vec<String>,
     /// Folders that are never suggested and never added to a plan, on top of the built-in list.
@@ -65,6 +69,8 @@ impl Default for Settings {
             tiering_cold_months: 12,
             tiering_min_gib: 1,
             tiering_hot_days: 30,
+            retention_keep: 5,
+            retention_depth: 4,
             excluded_paths: Vec::new(),
             protected_paths: Vec::new(),
         }
@@ -90,6 +96,8 @@ impl Settings {
         range("tiering_cold_months", (1..=120).contains(&self.tiering_cold_months), "must be between 1 and 120 months");
         range("tiering_min_gib", (1..=10_000).contains(&self.tiering_min_gib), "must be between 1 and 10000 GiB");
         range("tiering_hot_days", (1..=365).contains(&self.tiering_hot_days), "must be between 1 and 365 days");
+        range("retention_keep", (2..=50).contains(&self.retention_keep), "must be between 2 and 50 scans");
+        range("retention_depth", (1..=8).contains(&self.retention_depth), "must be between 1 and 8 levels");
         range("hdd_scan_concurrency", (1..=2).contains(&self.hdd_scan_concurrency), "must be 1 or 2");
         range("ssd_scan_concurrency", (1..=16).contains(&self.ssd_scan_concurrency), "must be between 1 and 16");
         range(
