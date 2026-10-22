@@ -4,6 +4,11 @@ All notable changes to diskdash are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-22
+
+### Changed
+- Starting diskdash while it is already running no longer fails with "port in use": it opens the browser on the running copy and exits. The portable zip's README and launcher say how to reopen the page and how to stop diskdash.
+
 ## [0.1.1] - 2026-10-22
 
 ### Fixed
@@ -31,6 +36,7 @@ All notable changes to diskdash are documented here. The format follows [Keep a 
 - Windows 10/11 x64 only; binaries are not code-signed.
 - The fast MFT scan has been tested on synthetic volumes; the real-volume test is opt-in and needs administrator rights, so treat it as experimental.
 
-[Unreleased]: https://github.com/michael-stanin/diskdash/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/michael-stanin/diskdash/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/michael-stanin/diskdash/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/michael-stanin/diskdash/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/michael-stanin/diskdash/releases/tag/v0.1.0

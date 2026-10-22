@@ -18,6 +18,17 @@ use diskdash_store::{open_catalog, DataDir, OwnFiles};
 async fn main() -> anyhow::Result<()> {
     let config = Config::from_args(std::env::args().skip(1)).context("invalid arguments")?;
 
+    // A second start (for example a second double-click on Start diskdash.cmd) must not fail: if our own
+    // server already answers on this port, just show it in the browser.
+    if !config.dev && diskdash::instance::is_running(config.port) {
+        let url = format!("http://127.0.0.1:{}/", config.port);
+        println!("diskdash is already running at {url}");
+        if config.open_browser {
+            open_browser(&url);
+        }
+        return Ok(());
+    }
+
     let data_dir = DataDir::resolve().context("cannot determine %LOCALAPPDATA%")?;
     let own = OwnFiles::new(&data_dir).context("cannot create the data directory")?;
     diskdash::logging::init(&own, &data_dir.logs_dir()).context("cannot initialise logging")?;

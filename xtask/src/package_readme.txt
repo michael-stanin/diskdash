@@ -9,7 +9,9 @@ Start
 -----
 1. Unzip this folder anywhere (for example your Documents folder).
 2. Double-click "Start diskdash.cmd". Your browser opens on http://127.0.0.1:8765.
-3. Close the black window to stop diskdash.
+3. Closing the browser tab does NOT stop diskdash; it keeps running in the black window.
+   To open the page again, double-click "Start diskdash.cmd" again (or go to
+   http://127.0.0.1:8765). To stop diskdash, close the black window or press Ctrl+C in it.
 
 There is nothing to install and nothing runs in the background. diskdash only
 listens on 127.0.0.1 (this PC), makes no internet connections, and shows no

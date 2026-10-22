@@ -16,6 +16,7 @@ pub mod error;
 pub mod events;
 pub mod helper;
 pub mod history;
+pub mod instance;
 pub mod inventory;
 pub mod jobs;
 pub mod logging;

@@ -44,7 +44,7 @@ A dark theme is included and follows your system setting.
    (Get-FileHash .\diskdash-<version>-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
    ```
 3. Unzip anywhere and double-click **Start diskdash.cmd**. Your browser opens on <http://127.0.0.1:8765>.
-4. Close the window to stop it.
+4. Closing the browser tab does not stop it. To reopen the page, double-click **Start diskdash.cmd** again (it opens the running copy) or go to <http://127.0.0.1:8765>. To stop it, close the window or press Ctrl+C.
 
 > **SmartScreen warning.** The binaries are not code-signed (a certificate costs money), so Windows may say "unrecognised app". Choose *More info*, then *Run anyway* if you trust the source, or build from source below and compare.
 
