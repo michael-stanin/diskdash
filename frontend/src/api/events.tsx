@@ -46,7 +46,12 @@ export function EventsProvider({ children, url = "/api/v1/events" }: { children:
       } catch {
         return;
       }
-      if (event.type === "inventory.updated") void qc.invalidateQueries({ queryKey: keys.drives });
+      if (event.type === "inventory.updated") {
+        void qc.invalidateQueries({ queryKey: keys.drives });
+        // What a report can contain (the drive summary, the forecast) depends on the drive list.
+        void qc.invalidateQueries({ queryKey: ["reports"] });
+        void qc.invalidateQueries({ queryKey: ["scan-modes"] });
+      }
       const job = event.data as JobStatus;
       if (event.type.startsWith("job.") && job && typeof job.id === "number") {
         setActiveJobs((prev) => {
