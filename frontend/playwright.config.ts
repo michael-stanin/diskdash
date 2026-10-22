@@ -12,7 +12,7 @@ export default defineConfig({
   // The light and dark projects share one server and data directory, so tests run one at a time.
   workers: 1,
   outputDir: "./test-results",
-  reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
+  reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }], ...(process.env.CI ? [["github"] as const] : [])],
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     // Use the Edge that ships with Windows instead of downloading a browser.
