@@ -9,9 +9,9 @@ Start
 -----
 1. Unzip this folder anywhere (for example your Documents folder).
 2. Double-click "Start diskdash.cmd". Your browser opens on http://127.0.0.1:8765.
-3. Closing the browser tab does NOT stop diskdash; it keeps running in the black window.
-   To open the page again, double-click "Start diskdash.cmd" again (or go to
-   http://127.0.0.1:8765). To stop diskdash, close the black window or press Ctrl+C in it.
+3. When you close the browser page, diskdash stops by itself after about 30 seconds and
+   the black window closes. To open it again, double-click "Start diskdash.cmd" again.
+   (To stop it right away, close the black window or press Ctrl+C in it.)
 
 There is nothing to install and nothing runs in the background. diskdash only
 listens on 127.0.0.1 (this PC), makes no internet connections, and shows no
@@ -39,5 +39,8 @@ choose.
 Options
 -------
 Run  diskdash.exe --port 9000  from a command prompt to use another port.
+Add  --open  to open the browser and  --exit-when-idle  to stop when the page is closed
+(that is what "Start diskdash.cmd" does). Without --exit-when-idle it keeps running
+until you close its window.
 
 Keep diskdash.exe and diskdash-helper.exe in the same folder.

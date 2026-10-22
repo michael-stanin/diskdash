@@ -171,6 +171,12 @@ impl JobRunner {
     }
 
     /// Stop accepting jobs, cancel running ones and wake the workers.
+    /// Jobs that are queued or running right now.
+    pub fn active_jobs(&self) -> usize {
+        let s = lock(&self.shared.sched);
+        s.queue.len() + s.running.len()
+    }
+
     pub fn shutdown(&self) {
         let mut s = lock(&self.shared.sched);
         s.shutdown = true;

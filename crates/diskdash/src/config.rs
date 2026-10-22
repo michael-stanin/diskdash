@@ -13,6 +13,10 @@ pub struct Config {
     pub dev: bool,
     /// Open the default browser once the server is listening.
     pub open_browser: bool,
+    /// Stop when the last browser page has been closed (see `idle`).
+    pub exit_when_idle: bool,
+    /// Seconds with no page open before `exit_when_idle` stops the server.
+    pub idle_secs: u64,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -21,6 +25,8 @@ pub enum ConfigError {
     NonLoopback(String),
     #[error("invalid port: {0}")]
     BadPort(String),
+    #[error("--idle-secs must be between 1 and 3600 (got {0})")]
+    BadIdle(String),
     #[error("unknown argument: {0}")]
     Unknown(String),
     #[error("missing value for {0}")]
@@ -29,7 +35,14 @@ pub enum ConfigError {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { bind: IpAddr::V4(Ipv4Addr::LOCALHOST), port: DEFAULT_PORT, dev: false, open_browser: false }
+        Self {
+            bind: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            port: DEFAULT_PORT,
+            dev: false,
+            open_browser: false,
+            exit_when_idle: false,
+            idle_secs: 30,
+        }
     }
 }
 
@@ -49,7 +62,7 @@ impl Config {
         SocketAddr::new(self.bind, self.port)
     }
 
-    /// Parse `--port <n>`, `--bind <ip>`, `--dev`, `--open`.
+    /// Parse `--port <n>`, `--bind <ip>`, `--dev`, `--open`, `--exit-when-idle`, `--idle-secs <n>`.
     pub fn from_args<I: IntoIterator<Item = String>>(args: I) -> Result<Self, ConfigError> {
         let mut cfg = Config::default();
         let mut it = args.into_iter();
@@ -68,6 +81,11 @@ impl Config {
                 }
                 "--dev" => cfg.dev = true,
                 "--open" => cfg.open_browser = true,
+                "--exit-when-idle" => cfg.exit_when_idle = true,
+                "--idle-secs" => {
+                    let v = it.next().ok_or(ConfigError::MissingValue("--idle-secs"))?;
+                    cfg.idle_secs = v.parse().ok().filter(|n| (1..=3600).contains(n)).ok_or(ConfigError::BadIdle(v))?;
+                }
                 other => return Err(ConfigError::Unknown(other.to_string())),
             }
         }
@@ -122,5 +140,12 @@ mod tests {
         assert!(Config::from_args(args("--port 0")).is_err());
         assert!(Config::from_args(args("--port x")).is_err());
         assert!(Config::from_args(args("--nope")).is_err());
+        let c = Config::from_args(args("--exit-when-idle --idle-secs 5")).unwrap();
+        assert_eq!((c.exit_when_idle, c.idle_secs), (true, 5));
+        let d = Config::from_args(args("--open")).unwrap();
+        assert_eq!((d.exit_when_idle, d.idle_secs), (false, 30), "off unless asked for");
+        assert!(Config::from_args(args("--idle-secs 0")).is_err());
+        assert!(Config::from_args(args("--idle-secs 99999")).is_err());
+        assert!(Config::from_args(args("--idle-secs")).is_err());
     }
 }

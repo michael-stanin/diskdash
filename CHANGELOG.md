@@ -4,6 +4,11 @@ All notable changes to diskdash are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-22
+
+### Added
+- `--exit-when-idle`: diskdash stops by itself about 30 seconds after the last browser page is closed, and never while a scan or other job is running. `Start diskdash.cmd` uses it, so closing the page also closes the black window. `--idle-secs <n>` changes the wait.
+
 ## [0.1.2] - 2026-10-22
 
 ### Changed
@@ -36,7 +41,8 @@ All notable changes to diskdash are documented here. The format follows [Keep a 
 - Windows 10/11 x64 only; binaries are not code-signed.
 - The fast MFT scan has been tested on synthetic volumes; the real-volume test is opt-in and needs administrator rights, so treat it as experimental.
 
-[Unreleased]: https://github.com/michael-stanin/diskdash/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/michael-stanin/diskdash/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/michael-stanin/diskdash/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/michael-stanin/diskdash/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/michael-stanin/diskdash/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/michael-stanin/diskdash/releases/tag/v0.1.0

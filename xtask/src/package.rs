@@ -14,7 +14,7 @@ use std::process::{Command, ExitCode, Stdio};
 use std::time::{Duration, Instant};
 
 const README: &str = include_str!("package_readme.txt");
-const LAUNCHER: &str = "@echo off\r\nrem Starts diskdash and opens it in your browser. Close this window to stop it.\r\ncd /d \"%~dp0\"\r\necho diskdash runs on http://127.0.0.1:8765. Close this window to stop it.\r\necho Closed the browser tab? Run this file again to reopen it.\r\ndiskdash.exe --open\r\n";
+const LAUNCHER: &str = "@echo off\r\nrem Starts diskdash and opens it in your browser. It stops by itself after the page is closed.\r\ncd /d \"%~dp0\"\r\necho diskdash runs on http://127.0.0.1:8765. It stops by itself about 30 seconds after you close its browser page.\r\necho To reopen the page, run this file again.\r\ndiskdash.exe --open --exit-when-idle\r\n";
 
 /// `version = "x.y.z"` from `[workspace.package]`.
 pub fn workspace_version(cargo_toml: &str) -> Option<String> {

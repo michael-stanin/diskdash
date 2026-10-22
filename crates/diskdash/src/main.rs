@@ -132,7 +132,7 @@ async fn main() -> anyhow::Result<()> {
         security: Arc::new(Security::new(config.port)),
         db,
         jobs: jobs.clone(),
-        events,
+        events: events.clone(),
         inventory,
         scans,
         cleanup,
@@ -158,9 +158,18 @@ async fn main() -> anyhow::Result<()> {
         open_browser(&url);
     }
 
+    // With --exit-when-idle the server stops by itself once the last browser page is closed.
+    let stop = Arc::new(tokio::sync::Notify::new());
+    if config.exit_when_idle {
+        diskdash::idle::spawn(events, jobs.clone(), std::time::Duration::from_secs(config.idle_secs), stop.clone());
+    }
+
     axum::serve(listener, build_router(state))
         .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {}
+                () = stop.notified() => println!("The browser page was closed, so diskdash is stopping."),
+            }
             tracing::info!("shutting down");
             jobs.shutdown();
         })

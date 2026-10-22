@@ -44,11 +44,11 @@ A dark theme is included and follows your system setting.
    (Get-FileHash .\diskdash-<version>-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
    ```
 3. Unzip anywhere and double-click **Start diskdash.cmd**. Your browser opens on <http://127.0.0.1:8765>.
-4. Closing the browser tab does not stop it. To reopen the page, double-click **Start diskdash.cmd** again (it opens the running copy) or go to <http://127.0.0.1:8765>. To stop it, close the window or press Ctrl+C.
+4. Closing the browser page makes diskdash stop by itself after about 30 seconds (and the window closes); a running scan keeps it alive until it finishes. Double-click **Start diskdash.cmd** again to reopen it. If it is still running, that just opens the page on the running copy. To stop it right away, close the window or press Ctrl+C.
 
 > **SmartScreen warning.** The binaries are not code-signed (a certificate costs money), so Windows may say "unrecognised app". Choose *More info*, then *Run anyway* if you trust the source, or build from source below and compare.
 
-Your scan results, settings and logs live in `%LOCALAPPDATA%\diskdash`. Delete that folder to start fresh. Use `diskdash.exe --port 9000` to change the port.
+Your scan results, settings and logs live in `%LOCALAPPDATA%\diskdash`. Delete that folder to start fresh. Use `diskdash.exe --port 9000` to change the port. Run `diskdash.exe --open --exit-when-idle` for what `Start diskdash.cmd` does; without `--exit-when-idle` it keeps running until you close its window.
 
 ## Is it safe?
 
