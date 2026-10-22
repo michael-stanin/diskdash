@@ -18,7 +18,7 @@ If a change needs to bend one of these, open an issue to discuss it first.
 You need Windows 10/11 x64, Rust stable (MSVC) with the Visual C++ build tools, and Node.js 20 or newer.
 
 ```bash
-git clone https://github.com/OWNER/diskdash.git
+git clone https://github.com/michael-stanin/diskdash.git
 cd diskdash/frontend && npm ci && cd ..
 .\start.cmd -Dev      # backend + Vite dev server with hot reload on http://127.0.0.1:5173
 ```

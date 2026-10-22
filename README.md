@@ -2,7 +2,7 @@
 
 **A local, read-only dashboard that shows where the space on your Windows drives went, and what you could safely remove or move.**
 
-[![CI](https://github.com/OWNER/diskdash/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/diskdash/actions/workflows/ci.yml)
+[![CI](https://github.com/michael-stanin/diskdash/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-stanin/diskdash/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform: Windows 10/11 x64](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-lightgrey)
 
@@ -38,7 +38,7 @@ A dark theme is included and follows your system setting.
 
 ## Download and run
 
-1. Get the latest `diskdash-<version>-windows-x64.zip` from the [Releases](https://github.com/OWNER/diskdash/releases) page.
+1. Get the latest `diskdash-<version>-windows-x64.zip` from the [Releases](https://github.com/michael-stanin/diskdash/releases) page.
 2. Optional: check it against the `.sha256` file next to it:
    ```powershell
    (Get-FileHash .\diskdash-0.1.0-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
@@ -73,7 +73,7 @@ Only fixed internal drives are analysed. USB, optical, virtual and network drive
 ## Build from source
 
 ```bash
-git clone https://github.com/OWNER/diskdash.git
+git clone https://github.com/michael-stanin/diskdash.git
 cd diskdash
 .\start.cmd            # builds if needed, starts on http://127.0.0.1:8765, opens the browser
 ```

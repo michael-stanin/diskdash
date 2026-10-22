@@ -21,5 +21,5 @@ All notable changes to diskdash are documented here. The format follows [Keep a 
 - Windows 10/11 x64 only; binaries are not code-signed.
 - The fast MFT scan has been tested on synthetic volumes; the real-volume test is opt-in and needs administrator rights, so treat it as experimental.
 
-[Unreleased]: https://github.com/OWNER/diskdash/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/OWNER/diskdash/releases/tag/v0.1.0
+[Unreleased]: https://github.com/michael-stanin/diskdash/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/michael-stanin/diskdash/releases/tag/v0.1.0
