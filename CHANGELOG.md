@@ -4,6 +4,16 @@ All notable changes to diskdash are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-22
+
+### Fixed
+- The Export dialog could open before the drive list had loaded and leave **Drive summary** disabled; report sections and scan modes now refresh when the drive list updates.
+
+### Changed
+- CI: Playwright failures are reported as annotations; the contrast check no longer races a hover transition.
+- Dependabot proposes only minor and patch updates; GitHub Actions updated to setup-node 7.
+- Open-source files: LICENSE (MIT), CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, third-party notices, issue and PR templates, release workflow.
+
 ## [0.1.0] - First public release
 
 ### Added
@@ -21,5 +31,6 @@ All notable changes to diskdash are documented here. The format follows [Keep a 
 - Windows 10/11 x64 only; binaries are not code-signed.
 - The fast MFT scan has been tested on synthetic volumes; the real-volume test is opt-in and needs administrator rights, so treat it as experimental.
 
-[Unreleased]: https://github.com/michael-stanin/diskdash/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/michael-stanin/diskdash/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/michael-stanin/diskdash/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/michael-stanin/diskdash/releases/tag/v0.1.0

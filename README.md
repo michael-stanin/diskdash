@@ -41,7 +41,7 @@ A dark theme is included and follows your system setting.
 1. Get the latest `diskdash-<version>-windows-x64.zip` from the [Releases](https://github.com/michael-stanin/diskdash/releases) page.
 2. Optional: check it against the `.sha256` file next to it:
    ```powershell
-   (Get-FileHash .\diskdash-0.1.0-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+   (Get-FileHash .\diskdash-<version>-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
    ```
 3. Unzip anywhere and double-click **Start diskdash.cmd**. Your browser opens on <http://127.0.0.1:8765>.
 4. Close the window to stop it.

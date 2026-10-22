@@ -327,7 +327,7 @@ dependencies = [
 
 [[package]]
 name = "diskdash"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "askama",
@@ -363,7 +363,7 @@ dependencies = [
 
 [[package]]
 name = "diskdash-analysis"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "blake3",
  "diskdash-core",
@@ -381,7 +381,7 @@ dependencies = [
 
 [[package]]
 name = "diskdash-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "crossbeam-channel",
  "rusqlite",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "diskdash-helper"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "diskdash-core",
  "diskdash-inventory",
@@ -410,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "diskdash-inventory"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "serde",
@@ -423,7 +423,7 @@ dependencies = [
 
 [[package]]
 name = "diskdash-store"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rusqlite",
  "serde_json",
@@ -1271,7 +1271,7 @@ dependencies = [
 
 [[package]]
 name = "test-fixtures"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "tempfile",
  "windows",
@@ -1682,7 +1682,7 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "tempfile",
 ]
