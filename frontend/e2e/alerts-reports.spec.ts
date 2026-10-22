@@ -21,6 +21,9 @@ test("the alerts page and the header bell work, and nothing asks for Windows not
   await page.getByRole("button", { name: "All" }).click();
   await page.getByRole("button", { name: "Resolved" }).click();
   await page.getByRole("button", { name: "Active" }).click();
+  // Move the pointer away and let the hover colour transition finish, or axe measures a half-faded colour.
+  await page.mouse.move(1, 1);
+  await page.waitForTimeout(300);
 
   const results = await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze();
   expect(results.violations.flatMap((v) => v.nodes.map((n) => n.target.join(" ")))).toEqual([]);
