@@ -1,68 +1,139 @@
 # diskdash
 
-A local dashboard for the drives in one Windows PC. It shows what is on each drive, where the space goes, and what you could remove or move. It is **strictly read-only**: diskdash finds and explains, and you carry out every step yourself.
+**A local, read-only dashboard that shows where the space on your Windows drives went, and what you could safely remove or move.**
 
-## Start
+[![CI](https://github.com/OWNER/diskdash/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/diskdash/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Platform: Windows 10/11 x64](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-lightgrey)
 
-Prerequisites (the script checks them and tells you how to install anything missing; it never downloads anything itself):
+![diskdash overview](docs/images/overview-light.png)
 
-- Rust stable with the MSVC toolchain (`winget install Rustlang.Rustup`) and the Visual C++ build tools
-- Node.js 20 or newer
+diskdash scans the fixed internal drives of one PC (HDDs, SATA SSDs, NVMe), then tells you what is big, what is old, what is duplicated and what could be cleaned, with the exact manual steps. **It never deletes, moves or changes anything.** You do every step yourself.
+
+- **Private by design.** It listens on `127.0.0.1` only, makes no outbound connections, has no accounts and no telemetry, and shows no Windows notifications.
+- **One portable folder.** Unzip and run. No installer, no service, no scheduled task, nothing running in the background.
+- **Fast when you let it.** An optional, strictly read-only elevated helper reads the NTFS file table, so a whole-drive scan takes seconds instead of minutes. Decline the Windows prompt and everything still works with the normal folder walk.
+
+## Features
+
+| | |
+|---|---|
+| **Drives** | Capacity, free space, media type (HDD / SATA SSD / NVMe), health, TRIM, low-space warnings, free-space forecast. |
+| **Usage explorer** | Treemap and sunburst of any folder, largest files and folders, file-type breakdown, hard links counted once, junctions never followed. |
+| **Cleanup suggestions** | 48 rules for caches, temp files, update leftovers, developer folders and more, ranked by space freed vs. risk (Safe / Review / Expert), each with copyable manual steps. |
+| **Stale data** | Files and folders you have not used for months, honest about whether Windows records last-access times. |
+| **Duplicates** | Finds identical files (size, then partial, then full BLAKE3 hash) and near-duplicate folders, with keep-rule suggestions. |
+| **Installed apps** | Largest programs and when they last ran, linked to Windows Settings for uninstalling. |
+| **Tiering** | Suggests what to move from a full SSD to an HDD (cold data), or from an HDD to an SSD (hot data and game libraries), and what it would do to free space. |
+| **Cleanup plans** | Collect suggestions into a checklist, export it, then re-scan to verify how much you really freed. |
+| **History** | Compare any two scans (what grew, shrank, appeared), free-space trend and "days until full" with an honest confidence note. |
+| **Alerts** | Low space and fast-growing folders, shown inside the app only, with de-duplication and cooldown. |
+| **Reports** | Export HTML (self-contained, works offline), CSV (zipped) or JSON. |
+
+| Scan dialog and fast scan | Export a report |
+|---|---|
+| ![Scan dialog](docs/images/scan-dialog.png) | ![Export report](docs/images/export-report.png) |
+
+A dark theme is included and follows your system setting.
+
+## Download and run
+
+1. Get the latest `diskdash-<version>-windows-x64.zip` from the [Releases](https://github.com/OWNER/diskdash/releases) page.
+2. Optional: check it against the `.sha256` file next to it:
+   ```powershell
+   (Get-FileHash .\diskdash-0.1.0-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+   ```
+3. Unzip anywhere and double-click **Start diskdash.cmd**. Your browser opens on <http://127.0.0.1:8765>.
+4. Close the window to stop it.
+
+> **SmartScreen warning.** The binaries are not code-signed (a certificate costs money), so Windows may say "unrecognised app". Choose *More info*, then *Run anyway* if you trust the source, or build from source below and compare.
+
+Your scan results, settings and logs live in `%LOCALAPPDATA%\diskdash`. Delete that folder to start fresh. Use `diskdash.exe --port 9000` to change the port.
+
+## Is it safe?
+
+diskdash is built around one rule: **it must never be able to lose your data.** This is enforced in the code base, not just promised:
+
+- **No write path to your files.** Clippy forbids file-mutating `std::fs` calls outside one audited module, and `cargo xtask readonly-check` fails the build if any Win32 delete/move/write API appears. The only files it writes are its own database and logs, and a report you explicitly export (new file only, never overwriting).
+- **No network.** It binds to loopback only, rejects cross-origin requests, uses a per-session token for state-changing calls, and `cargo xtask no-http-client` fails the build if an HTTP client is ever added.
+- **No OS integration.** `cargo xtask no-os-integration` fails the build on notifications, tray icons, shortcuts, services or scheduled tasks.
+- **A helper that can only read.** The elevated helper exposes a closed set of read-only operations over a named pipe that only your user can open, authenticated with a per-launch secret. It takes volume IDs it listed itself, never paths, and has no write, delete or run operation.
+- **Suggestions, not actions.** Protected locations (Windows, Program Files and other system folders, plus anything you add in Settings) are never suggested. Instructions are shown as text and never executed.
+
+See [SECURITY.md](SECURITY.md) for how to report a problem.
+
+## Requirements
+
+- Windows 10 or 11, x64.
+- A modern browser (Edge, Chrome, Firefox).
+- To build from source: Rust (stable, MSVC toolchain) with the Visual C++ build tools, and Node.js 20 or newer.
+
+Only fixed internal drives are analysed. USB, optical, virtual and network drives are deliberately out of scope.
+
+## Build from source
 
 ```bash
-.\start.cmd
+git clone https://github.com/OWNER/diskdash.git
+cd diskdash
+.\start.cmd            # builds if needed, starts on http://127.0.0.1:8765, opens the browser
 ```
 
-`start.cmd` runs `start.ps1` with PowerShell's script policy bypassed for that one script, so it works on a default Windows install without changing any system setting. (If you have already allowed scripts, `.\start.ps1` works too.)
+`start.cmd` runs `start.ps1` with the execution policy bypassed for that one script only; no system setting is changed. Options: `-Port 9000`, `-NoBrowser`, `-Dev` (backend plus Vite dev server with hot reload on <http://127.0.0.1:5173>).
 
-This builds the UI and the server when they are out of date, starts `diskdash.exe` on <http://127.0.0.1:8765> and opens your browser. Press Ctrl+C to stop. Options: `-Port 9000`, `-NoBrowser`.
-
-The release build is a single `target\release\diskdash.exe` with the UI embedded; you can copy it anywhere and run it.
-
-## Share it (portable zip)
+To make the portable zip (UI, release binaries, helper, README, smoke test, SHA-256):
 
 ```bash
+cd frontend && npm ci && cd ..
 cargo xtask package
 ```
 
-Builds the UI and release binaries, smoke-tests the packaged exe, and writes `dist\diskdash-<version>-windows-x64.zip` plus a `.sha256`. Friends unzip it and double-click `Start diskdash.cmd`: no install, nothing in the background, nothing leaves their PC. It needs `frontend\node_modules` (run `npm ci` once). The files are not code-signed, so SmartScreen may warn; the zip's README explains.
+The result is in `dist\`.
 
 ## Develop
 
-```bash
-.\start.cmd -Dev
-```
-
-Runs the backend with `cargo run -- --dev` and the Vite dev server with hot reload on <http://127.0.0.1:5173>.
-
 | Check | Command |
 |---|---|
-| Rust tests (also regenerates `frontend/src/api/types`) | `cargo test --workspace` |
-| Lints incl. the read-only list | `cargo clippy --workspace --all-targets -- -D warnings` |
+| Rust tests (also regenerate `frontend/src/api/types`) | `cargo test --workspace` |
+| Formatting | `cargo fmt --all -- --check` |
+| Lints, including the read-only list | `cargo clippy --workspace --all-targets -- -D warnings` |
 | Win32 read-only guard | `cargo xtask readonly-check` |
 | No HTTP client in the server | `cargo xtask no-http-client` |
-| UI unit tests / lint / types | `npm test`, `npm run lint`, `npm run typecheck` (in `frontend/`) |
-| No external URLs in the bundle | `npm run build && npm run check:bundle` |
-| Smoke test, both themes + contrast | `npx playwright test` (uses the installed Microsoft Edge) |
+| No OS notifications, trays, services, tasks | `cargo xtask no-os-integration` |
+| UI lint, types, unit tests | `npm run lint`, `npm run typecheck`, `npm test` (in `frontend/`) |
+| No external URLs in the UI bundle | `npm run build && npm run check:bundle` |
+| End-to-end, both themes and contrast | `npx playwright test` (uses the installed Microsoft Edge) |
+| Opt-in admin tests (VHDX, MFT vs. walk) | `DISKDASH_ADMIN_TESTS=1 cargo test -p diskdash-core --test admin_ntfs -- --ignored` (elevated) |
 
-Specs and plans live in `openspec/` (OpenSpec). The project context and safety rules are in `openspec/config.yaml`.
+### Architecture
 
-## Where data lives
+A Rust cargo workspace that produces `diskdash.exe` (the UI is embedded) and `diskdash-helper.exe`:
 
-Everything diskdash stores is under `%LOCALAPPDATA%\diskdash`: the SQLite database (`diskdash.db`), scan snapshots and rotating logs (`logs\`). Set `DISKDASH_DATA_DIR` to use another folder (tests do this).
+| Crate | Role |
+|---|---|
+| `diskdash` | axum server, job runner, SSE, all HTTP routes, report and alert services |
+| `diskdash-core` | Directory-walk scanner, NTFS MFT parser and importer, snapshot schema |
+| `diskdash-analysis` | Rules engine, stale data, duplicates, tiering, forecast, alerts (pure logic) |
+| `diskdash-inventory` | Drive, health and installed-app discovery |
+| `diskdash-store` | SQLite catalog and migrations; the single allow-listed file writer |
+| `diskdash-helper` | The strictly read-only elevated helper and its protocol |
+| `test-fixtures` | Builds temporary trees and test VHDX volumes |
+| `xtask` | Repository guards and packaging |
 
-## Security and read-only model
+The frontend (`frontend/`) is React 19, TypeScript, Vite, Tailwind, Radix UI, TanStack Query/Table/Virtual and Apache ECharts, with shared TypeScript API types generated from the Rust structs.
 
-- **Localhost only.** The server binds to `127.0.0.1` and refuses any other address. Requests with a foreign `Host` header get 421, which blocks DNS rebinding.
-- **No cross-site requests.** Every state-changing request needs a per-process token that only the page served by diskdash can read, plus a same-origin `Origin`.
-- **No network.** The server contains no HTTP client (checked in CI), and the UI bundle loads nothing from the internet, not even fonts (checked in CI).
-- **Read-only by construction.** Only one module (`diskdash_store::own_files`) can write files, and only inside the data folder. Clippy rejects `std::fs` mutators everywhere else, and `cargo xtask readonly-check` rejects Win32 APIs that delete, move, rename, link or change files, ACLs or the registry.
-- **Reduced mode.** diskdash runs without admin rights. Features that need admin (disk health counters, the fast MFT scan) show as unavailable; the web server never elevates itself.
+The project is spec-driven with [OpenSpec](https://github.com/Fission-AI/OpenSpec): the requirements live in `openspec/specs/`, and every completed change is archived with its design and tasks in `openspec/changes/archive/`.
 
-## Design system
+## Limitations
 
-- Tokens (all colours, light and dark): `frontend/src/styles/tokens.css`. Components must use token-backed Tailwind classes; ESLint rejects colour literals.
-- Shared components: `frontend/src/components/` (stat card, size display, fill bar, badges, empty/error states, virtualised data table, toasts).
-- See every component in both themes at <http://127.0.0.1:8765/dev/components>.
-- Charts read the same tokens at runtime (`frontend/src/lib/chart-theme.ts`).
-- Fonts: Geist and Geist Mono, bundled locally.
+- Windows x64 only; no Linux or macOS support (it reads the machine through Windows APIs).
+- Unsigned binaries.
+- The fast MFT scan and USN quick rescan are tested against synthetic volumes and in-process fakes. The test against a real volume needs an elevated opt-in run (see above); treat the fast scan as **experimental** until it has had wider use, and tell us what you see.
+- Allocated-size accounting for OneDrive placeholders, dedup and WOF-compressed files follows the documented rules but cannot be exact in every case.
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first, in particular the safety rules, which every change must keep. By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+[MIT](LICENSE). Third-party components and their licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -23,6 +23,8 @@ jobs:
         run: cargo xtask readonly-check
       - name: No HTTP client in the server
         run: cargo xtask no-http-client
+      - name: No OS notifications, trays, shortcuts, services or scheduled tasks
+        run: cargo xtask no-os-integration
       - name: Tests (also regenerates TypeScript API types)
         run: cargo test --workspace
       - name: Generated TypeScript types are committed

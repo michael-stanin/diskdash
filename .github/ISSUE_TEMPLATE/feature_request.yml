@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an idea or a new cleanup rule
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        diskdash is read-only and local by design (no deleting, no network, no notifications, no background tasks). Ideas that need to bend those rules are unlikely to be accepted, but explain your case if you think it is worth discussing.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like diskdash to do?
+    validations:
+      required: true
+  - type: textarea
+    id: rule
+    attributes:
+      label: New cleanup rule? Where does the data live?
+      description: "For a rule: the folder or file pattern, which program creates it, whether it is safe to remove, and how to remove it by hand."
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

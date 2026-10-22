@@ -1,0 +1,40 @@
+name: Release
+
+# Builds the portable zip from a version tag and attaches it, with its SHA-256, to a GitHub release.
+# Push a tag such as v0.1.0 (it must match the version in Cargo.toml).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Tag matches the workspace version
+        shell: bash
+        run: |
+          v=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag ${GITHUB_REF_NAME} does not match Cargo.toml version $v"; exit 1; }
+      - run: npm ci --no-audit --no-fund
+        working-directory: frontend
+      - name: Build, smoke-test and zip
+        run: cargo xtask package
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/*.zip dist/*.zip.sha256 \
+            --title "diskdash ${GITHUB_REF_NAME}" \
+            --notes "Portable Windows x64 build. Unzip and run **Start diskdash.cmd**. The binaries are not code-signed, so SmartScreen may warn; verify the SHA-256 in the attached .sha256 file. See CHANGELOG.md for what changed."

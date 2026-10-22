@@ -1,0 +1,51 @@
+name: Bug report
+description: Something is wrong or misleading in diskdash
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **If this could affect data safety or privacy (diskdash changing a file, a network connection, the helper doing something it should not), do not file it here.** Use *Security → Report a vulnerability* instead.
+        Please do not paste scan databases or full path listings: they can contain private names.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what did you see instead? Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Scan drive D:\n2. Open Duplicates\n3. ..."
+  - type: input
+    id: version
+    attributes:
+      label: diskdash version
+      placeholder: "0.1.0 (shown bottom-left in the app)"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 23H2"
+    validations:
+      required: true
+  - type: dropdown
+    id: scan
+    attributes:
+      label: Scan mode involved
+      options: ["Not about scanning", "Directory walk", "Fast scan (MFT, elevated helper)", "Quick rescan", "Not sure"]
+  - type: dropdown
+    id: drive
+    attributes:
+      label: Drive type involved
+      options: ["Not drive specific", "NVMe SSD", "SATA SSD", "HDD", "Not sure"]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log excerpt (optional)
+      description: "From %LOCALAPPDATA%\\diskdash\\logs. Remove anything private first."
+      render: text
