@@ -54,7 +54,7 @@ jobs:
       - run: npm run build
       - name: No external URLs in the bundle
         run: npm run check:bundle
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: frontend/dist
@@ -81,7 +81,7 @@ jobs:
       - name: Smoke tests (uses the preinstalled Microsoft Edge)
         run: npx playwright test
         working-directory: frontend
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: screenshots
