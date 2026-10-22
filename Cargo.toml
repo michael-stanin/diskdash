@@ -13,7 +13,7 @@ anyhow = "1"
 askama = { version = "0.12", default-features = false }
 csv = "1"
 zip = { version = "2", default-features = false, features = ["deflate"] }
-base64 = "0.22"
+base64 = "0.23"
 blake3 = "1"
 crossbeam-channel = "0.5"
 axum = "0.8"
