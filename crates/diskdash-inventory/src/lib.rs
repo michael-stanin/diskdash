@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use assemble::HealthInputs;
 use model::{HealthSources, Inventory, TrimState};
 use raw::{RawInventory, RawReliability};
-use runner::{fsutil_exe, powershell_args, powershell_exe, CommandRunner, RunError};
+use runner::{fsutil_exe, run_powershell, CommandRunner, RunError};
 
 pub const INVENTORY_SCRIPT: &str = include_str!("../scripts/inventory.ps1");
 pub const RELIABILITY_SCRIPT: &str = include_str!("../scripts/reliability.ps1");
@@ -31,6 +31,12 @@ pub enum CollectError {
     Run(#[from] RunError),
     #[error("cannot parse inventory output: {0}")]
     Parse(#[from] serde_json::Error),
+}
+
+/// Set `DISKDASH_NO_POWERSHELL=1` to never start PowerShell (for example when antivirus objects);
+/// the built-in Windows API path is used instead, with less detail.
+fn powershell_disabled() -> bool {
+    std::env::var_os("DISKDASH_NO_POWERSHELL").is_some_and(|v| !v.is_empty() && v != "0")
 }
 
 /// Gathers the inventory. Elevated sources are used only when `elevated`.
@@ -44,6 +50,9 @@ pub struct Collector<'a> {
 impl Collector<'_> {
     /// Run the PowerShell query, falling back to native Win32 if it fails.
     pub fn raw(&self) -> (RawInventory, bool) {
+        if powershell_disabled() {
+            return (native::collect(), true);
+        }
         match self.powershell_raw() {
             Ok(raw) if !raw.volumes.is_empty() => (raw, false),
             Ok(_) => {
@@ -58,7 +67,7 @@ impl Collector<'_> {
     }
 
     fn powershell_raw(&self) -> Result<RawInventory, CollectError> {
-        let out = self.runner.run(&powershell_exe(), &powershell_args(INVENTORY_SCRIPT))?;
+        let out = run_powershell(self.runner, INVENTORY_SCRIPT)?;
         let mut raw = RawInventory::from_json(out.trim())?;
         if raw.logical.is_empty() {
             raw.logical = native::drive_types();
@@ -67,25 +76,21 @@ impl Collector<'_> {
     }
 
     fn reliability(&self) -> Vec<RawReliability> {
-        if !self.elevated {
+        if !self.elevated || powershell_disabled() {
             return Vec::new();
         }
-        let parsed = self
-            .runner
-            .run(&powershell_exe(), &powershell_args(RELIABILITY_SCRIPT))
-            .map_err(CollectError::from)
-            .and_then(|out| {
-                let trimmed = out.trim();
-                if trimmed.is_empty() {
-                    return Ok(Vec::new());
-                }
-                // A single object serialises without the array brackets.
-                if trimmed.starts_with('[') {
-                    Ok(serde_json::from_str(trimmed)?)
-                } else {
-                    Ok(vec![serde_json::from_str(trimmed)?])
-                }
-            });
+        let parsed = run_powershell(self.runner, RELIABILITY_SCRIPT).map_err(CollectError::from).and_then(|out| {
+            let trimmed = out.trim();
+            if trimmed.is_empty() {
+                return Ok(Vec::new());
+            }
+            // A single object serialises without the array brackets.
+            if trimmed.starts_with('[') {
+                Ok(serde_json::from_str(trimmed)?)
+            } else {
+                Ok(vec![serde_json::from_str(trimmed)?])
+            }
+        });
         parsed.unwrap_or_else(|e| {
             tracing::warn!(error = %e, "reliability counters unavailable");
             Vec::new()

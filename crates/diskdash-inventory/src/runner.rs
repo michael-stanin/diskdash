@@ -6,8 +6,6 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use base64::Engine;
-
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Debug, thiserror::Error)]
@@ -88,19 +86,18 @@ impl CommandRunner for ProcessRunner {
     }
 }
 
-/// Arguments for running an embedded script with Windows PowerShell 5.1.
-/// `-EncodedCommand` avoids any quoting of the script text.
+/// Arguments for running an embedded script with Windows PowerShell 5.1: a plain `-Command`.
+/// Deliberately no `-EncodedCommand` or `-ExecutionPolicy Bypass` (antivirus products flag those
+/// on sight; execution policy only applies to script files anyway). The scripts contain no double
+/// quotes, so the command line needs no escaping. Piping the script through stdin is not an
+/// option: PowerShell silently drops multi-line blocks read that way.
 pub fn powershell_args(script: &str) -> Vec<String> {
-    let utf16: Vec<u8> = script.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
-    let encoded = base64::engine::general_purpose::STANDARD.encode(utf16);
-    vec![
-        "-NoProfile".into(),
-        "-NonInteractive".into(),
-        "-ExecutionPolicy".into(),
-        "Bypass".into(),
-        "-EncodedCommand".into(),
-        encoded,
-    ]
+    vec!["-NoProfile".into(), "-NonInteractive".into(), "-Command".into(), script.into()]
+}
+
+/// Run an embedded script through PowerShell.
+pub fn run_powershell(runner: &dyn CommandRunner, script: &str) -> Result<String, RunError> {
+    runner.run(&powershell_exe(), &powershell_args(script))
 }
 
 pub fn powershell_exe() -> std::path::PathBuf {
@@ -118,11 +115,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn encoded_command_round_trips() {
-        let args = powershell_args("Write-Output 'é'");
-        let decoded = base64::engine::general_purpose::STANDARD.decode(&args[5]).unwrap();
-        let utf16: Vec<u16> = decoded.chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
-        assert_eq!(String::from_utf16(&utf16).unwrap(), "Write-Output 'é'");
+    fn embedded_scripts_need_no_quote_escaping() {
+        assert!(!crate::INVENTORY_SCRIPT.contains('"') && !crate::RELIABILITY_SCRIPT.contains('"'));
+    }
+
+    #[test]
+    fn command_line_has_no_flagged_switches() {
+        let line = powershell_args("Get-Date").join(" ").to_lowercase();
+        assert!(!line.contains("encodedcommand") && !line.contains("bypass") && !line.contains("hidden"), "{line}");
     }
 
     #[test]
@@ -138,7 +138,14 @@ mod tests {
     #[test]
     fn real_runner_captures_stdout() {
         let r = ProcessRunner::default();
-        let out = r.run(&powershell_exe(), &powershell_args("Write-Output 42")).unwrap();
-        assert_eq!(out.trim(), "42");
+        let out = run_powershell(&r, "Write-Output 'é'; Write-Output 42").unwrap();
+        assert_eq!(out.trim().lines().last().unwrap().trim(), "42");
+    }
+
+    #[test]
+    fn inventory_script_runs_from_stdin_and_parses() {
+        let out = run_powershell(&ProcessRunner::default(), crate::INVENTORY_SCRIPT).unwrap();
+        let raw = crate::raw::RawInventory::from_json(out.trim()).unwrap();
+        assert!(!raw.volumes.is_empty());
     }
 }

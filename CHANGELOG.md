@@ -4,6 +4,10 @@ All notable changes to diskdash are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Changed
+- Drive queries start PowerShell with a plain `-Command` instead of `-EncodedCommand -ExecutionPolicy Bypass`, which some antivirus products (for example Avast) flagged as suspicious.
+- `DISKDASH_NO_POWERSHELL=1` makes diskdash never start PowerShell; it then uses built-in Windows APIs only (less drive detail).
+
 ## [0.1.3] - 2026-10-22
 
 ### Added
