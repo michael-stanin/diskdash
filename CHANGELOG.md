@@ -4,6 +4,8 @@ All notable changes to diskdash are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-23
+
 ### Changed
 - Drive queries start PowerShell with a plain `-Command` instead of `-EncodedCommand -ExecutionPolicy Bypass`, which some antivirus products (for example Avast) flagged as suspicious.
 - `DISKDASH_NO_POWERSHELL=1` makes diskdash never start PowerShell; it then uses built-in Windows APIs only (less drive detail).
@@ -45,7 +47,8 @@ All notable changes to diskdash are documented here. The format follows [Keep a 
 - Windows 10/11 x64 only; binaries are not code-signed.
 - The fast MFT scan has been tested on synthetic volumes; the real-volume test is opt-in and needs administrator rights, so treat it as experimental.
 
-[Unreleased]: https://github.com/michael-stanin/diskdash/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/michael-stanin/diskdash/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/michael-stanin/diskdash/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/michael-stanin/diskdash/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/michael-stanin/diskdash/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/michael-stanin/diskdash/compare/v0.1.0...v0.1.1
